@@ -346,3 +346,10 @@ body {
   .save-row { flex-direction: column; }
   .saved-row { flex-direction: column; align-items: stretch; gap: 10px; }
 }
+
+/* На 390px чотири вкладки не вміщаються з десктопними відступами й останню
+   ріже на півслові — виглядає як поломка, хоча смуга й прокручується.
+   Стискаємо так, щоб усі чотири було видно одразу. */
+@media (max-width: 520px) {
+  .tab { padding: 10px 11px; font-size: 13px; }
+}
