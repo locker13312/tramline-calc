@@ -1,0 +1,166 @@
+:root {
+  --bg: #f6f7f5;
+  --surface: #ffffff;
+  --border: #dfe3dc;
+  --text: #1c2118;
+  --text2: #5a6354;
+  --text3: #8a9184;
+  --accent: #3f7d20;
+  --accent-soft: #eaf2e4;
+  --warn: #9a6b00;
+  --warn-soft: #fdf5e2;
+  --bad: #a52f2f;
+  --bad-soft: #fbeceb;
+  --soil: #efe9dd;
+  --soil-alt: #e7e0d1;
+  --radius: 10px;
+  --mono: ui-monospace, "Cascadia Mono", "Consolas", monospace;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #14170f;
+    --surface: #1c2018;
+    --border: #2f352a;
+    --text: #e9ece4;
+    --text2: #a9b1a1;
+    --text3: #7b8375;
+    --accent: #8ec463;
+    --accent-soft: #24301a;
+    --warn: #e0b055;
+    --warn-soft: #302710;
+    --bad: #e88a82;
+    --bad-soft: #351d1b;
+    --soil: #262215;
+    --soil-alt: #2e2917;
+  }
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font: 15px/1.55 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+}
+
+.app { max-width: 1240px; margin: 0 auto; padding: 28px 20px 60px; }
+
+.head h1 { font-size: 27px; margin: 0 0 6px; letter-spacing: -0.02em; }
+.head p { margin: 0 0 24px; color: var(--text2); max-width: 70ch; }
+
+.cols { display: grid; grid-template-columns: 330px 1fr; gap: 20px; align-items: start; }
+/* Без цього колонка grid роздувається під ширину схеми, і вбік їде вся
+   сторінка замість самої схеми. */
+.cols > * { min-width: 0; }
+
+.card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 18px;
+  margin-bottom: 20px;
+}
+.card h2 { font-size: 15px; margin: 0 0 14px; letter-spacing: 0.01em; }
+.card h3 { font-size: 13px; margin: 14px 0 6px; color: var(--text2); }
+.card.bad { border-color: var(--bad); background: var(--bad-soft); }
+
+/* Форма */
+.form { position: sticky; top: 20px; }
+.form label { display: block; margin-bottom: 14px; font-size: 12.5px; color: var(--text2); }
+.form input, .form select {
+  display: block; width: 100%; margin-top: 5px;
+  padding: 9px 11px; font-size: 15px; font-family: inherit;
+  color: var(--text); background: var(--bg);
+  border: 1px solid var(--border); border-radius: 7px;
+}
+.form input:focus, .form select:focus { outline: 2px solid var(--accent); outline-offset: -1px; }
+.pair { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.check { display: flex; align-items: center; gap: 9px; color: var(--text); }
+.check input { width: 18px; height: 18px; margin: 0; flex-shrink: 0; }
+.hint { font-size: 12px; color: var(--text3); margin: -8px 0 14px; }
+.muted { color: var(--text2); font-size: 13px; }
+
+/* Показники */
+.stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; }
+.stat-label { font-size: 11px; color: var(--text3); text-transform: uppercase; letter-spacing: 0.06em; }
+.stat-value { font-size: 25px; font-weight: 650; font-family: var(--mono); margin: 2px 0; }
+.stat-sub { font-size: 12px; color: var(--text2); }
+
+.warn {
+  background: var(--warn-soft); color: var(--warn);
+  border-radius: 7px; padding: 9px 12px; font-size: 13px; margin: 14px 0 0;
+}
+
+/* Схема */
+.diagram svg { width: 100%; height: auto; display: block; }
+.d-pass { fill: var(--soil); stroke: var(--border); }
+.d-pass-alt { fill: var(--soil-alt); }
+.d-pass-hit { stroke: var(--accent); }
+.d-strip { fill: var(--bad); opacity: 0.16; }
+.d-row { stroke: var(--accent); stroke-width: 2; }
+.d-row-off { stroke: var(--bad); stroke-width: 2.5; stroke-dasharray: 4 5; }
+.d-boom { stroke: var(--text3); stroke-width: 1.5; }
+.d-ruler { stroke: var(--text3); stroke-width: 1; }
+.d-label { fill: var(--text3); font-size: 12px; font-family: var(--mono); }
+.d-label-mid { text-anchor: middle; }
+.d-num { fill: var(--bad); font-size: 12px; font-weight: 700; text-anchor: middle; font-family: var(--mono); }
+
+.legend { display: flex; gap: 18px; flex-wrap: wrap; font-size: 12.5px; color: var(--text2); margin-top: 10px; }
+.legend .sw { display: inline-block; width: 14px; height: 3px; border-radius: 2px; margin-right: 6px; vertical-align: middle; }
+.sw-row { background: var(--accent); }
+.sw-off { background: var(--bad); }
+.sw-strip { background: var(--bad); opacity: 0.3; height: 12px; }
+
+/* План проходів */
+.plan { list-style: none; margin: 14px 0 0; padding: 0; }
+.plan li { display: flex; gap: 12px; padding: 11px 12px; border-radius: 8px; background: var(--bg); margin-bottom: 8px; }
+.plan li.plan-hit { background: var(--accent-soft); }
+.plan-n {
+  flex-shrink: 0; width: 26px; height: 26px; border-radius: 50%;
+  background: var(--surface); border: 1px solid var(--border);
+  display: grid; place-items: center; font-family: var(--mono); font-size: 13px; font-weight: 700;
+}
+.plan-body { flex: 1; font-size: 14px; }
+.plan-ok { color: var(--text2); }
+.plan-warn { color: var(--warn); }
+.plan-note { font-size: 12.5px; color: var(--text2); margin-top: 3px; }
+
+.fixes ul { margin: 4px 0; padding-left: 20px; font-size: 13.5px; }
+.foot { color: var(--text3); font-size: 12.5px; border-top: 1px solid var(--border); padding-top: 14px; }
+
+/* Телефон */
+@media (max-width: 860px) {
+  .app { padding: 18px 14px 40px; }
+  .cols { grid-template-columns: 1fr; }
+  .form { position: static; }
+  .stats { grid-template-columns: repeat(2, 1fr); }
+  /* 16px не дає iOS зумити сторінку при фокусі */
+  .form input, .form select { font-size: 16px; }
+
+  /* Стиснути 25 метрів поля в 330 px — підписи стають нечитабельні.
+     Краще прокрутка вбік, як у таблиці. */
+  .diagram { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+  .diagram svg { min-width: 640px; }
+  .diagram::after {
+    content: 'проведіть пальцем, щоб роздивитись';
+    display: block; font-size: 12px; color: var(--text3); padding-top: 6px;
+  }
+}
+
+/* ── Схема всього поля ─────────────────────────────────── */
+.plan-wrap svg { flex: 1; width: 100%; height: auto; display: block; }
+.plan-body { display: flex; gap: 8px; align-items: stretch; }
+.plan-dim { font-size: 12.5px; color: var(--text3); font-family: var(--mono); text-align: center; padding: 6px 0; }
+.plan-dim-side { writing-mode: vertical-rl; transform: rotate(180deg); padding: 0; flex-shrink: 0; }
+.f-field { fill: var(--soil); }
+.f-border { fill: none; stroke: var(--text3); stroke-width: 1.5; }
+.f-drill { stroke: var(--text3); stroke-width: 0.5; opacity: 0.35; }
+.f-spray { stroke: var(--text3); stroke-width: 0.75; stroke-dasharray: 5 6; }
+.f-tram { stroke: var(--bad); stroke-width: 2; }
+.f-dim { fill: var(--text3); font-size: 13px; font-family: var(--mono); }
+.f-mid { text-anchor: middle; }
+.sw-tram { background: var(--bad); }
+.sw-spray { background: var(--text3); }
+.sw-drill { background: var(--border); }
