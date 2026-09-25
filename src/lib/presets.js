@@ -32,4 +32,10 @@ export const DEFAULTS = {
   halfStart: false,
   fieldWidth: 600,
   fieldLength: 800,
+  headland: 24,          // два заходи обприскувача — типовий обсів
+  spreaderWidth: 0,      // 0 = розкидач не рахуємо
+  yieldPerHa: 2.8,       // соняшник, середнє по Україні
+  pricePerTon: 18000,
+  passes: 4,             // обприскувань за сезон
+  damagePct: 70,         // скільки врожаю гине під колесом
 }

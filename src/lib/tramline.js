@@ -199,7 +199,7 @@ export function computeTramlines({
 // самий цикл, повторений потрібну кількість разів. Рахуємо його явно, а не
 // множенням, бо поле майже ніколи не ділиться націло: останній прохід виходить
 // неповним, і саме там ховаються зайві колії та недосіяні смуги.
-export function fieldPlan(result, { fieldWidth, fieldLength, rowSpacing }) {
+export function fieldPlan(result, { fieldWidth, fieldLength, rowSpacing, headland = 0 }) {
   if (!result?.ok || !(fieldWidth > 0) || !(fieldLength > 0)) return null
 
   const W = result.drillWidth
@@ -207,36 +207,49 @@ export function fieldPlan(result, { fieldWidth, fieldLength, rowSpacing }) {
   const k = result.cycle
   const shift = result.shift || 0
 
-  // Проходи сівалки по всій ширині поля
+  // Обсів по периметру сіють окремо й по ньому ж розвертаються, тож колія в
+  // ньому не потрібна — і не влазить: комбайн і обприскувач заходять у загінку
+  // вже під кутом. Робоча частина поля — те, що лишилось усередині.
+  const H = Math.max(0, headland)
+  const x0 = H
+  const x1 = fieldWidth - H
+  const workWidth = x1 - x0
+  const workLength = fieldLength - 2 * H
+  if (workWidth <= W || workLength <= 0) {
+    return { tooSmall: true, fieldWidth, fieldLength, headland: H,
+      areaHa: mm((fieldWidth * fieldLength) / 10000) }
+  }
+
+  // Проходи сівалки по робочій ширині
   const passes = []
   for (let i = 0; ; i++) {
-    const from = i * W - shift
-    if (from >= fieldWidth - EPS) break
-    const to = Math.min(from + W, fieldWidth)
+    const from = x0 + i * W - shift
+    if (from >= x1 - EPS) break
+    const to = Math.min(from + W, x1)
     const inCycle = ((i % k) + k) % k
     passes.push({
       i: i + 1,
       cycleN: inCycle + 1,
-      from: mm(Math.max(from, 0)),
+      from: mm(Math.max(from, x0)),
       to: mm(to),
-      width: mm(to - Math.max(from, 0)),
-      full: from >= -EPS && to >= from + W - EPS,
+      width: mm(to - Math.max(from, x0)),
+      full: from >= x0 - EPS && to >= from + W - EPS,
       disabled: result.passes[inCycle].disabled,
     })
   }
 
   // Колії: візерунок першого проходу обприскувача, зсунутий на j · S.
   const strips = []
-  const sprayerPasses = Math.ceil(fieldWidth / S)
+  const sprayerPasses = Math.ceil(workWidth / S)
   for (let j = 0; j < sprayerPasses; j++) {
     for (const s of result.strips) {
-      const centre = s.centre + j * S
-      if (centre < 0 || centre > fieldWidth) continue   // колія за межами поля
+      const centre = x0 + s.centre + j * S
+      if (centre < x0 || centre > x1) continue   // колія за межами робочої частини
       strips.push({
         pass: j + 1,
         centre: mm(centre),
-        from: mm(Math.max(s.from + j * S, 0)),
-        to: mm(Math.min(s.to + j * S, fieldWidth)),
+        from: mm(Math.max(x0 + s.from + j * S, x0)),
+        to: mm(Math.min(x0 + s.to + j * S, x1)),
       })
     }
   }
@@ -246,25 +259,160 @@ export function fieldPlan(result, { fieldWidth, fieldLength, rowSpacing }) {
   let disabledRows = 0
   for (const p of passes) {
     for (const m of p.disabled) {
-      const x = (p.i - 1) * W - shift + (m - 0.5) * rowSpacing
-      if (x >= -EPS && x <= fieldWidth + EPS) disabledRows++
+      const x = x0 + (p.i - 1) * W - shift + (m - 0.5) * rowSpacing
+      if (x >= x0 - EPS && x <= x1 + EPS) disabledRows++
     }
   }
 
   const areaHa = mm((fieldWidth * fieldLength) / 10000)
-  const lostHa = mm((disabledRows * rowSpacing * fieldLength) / 10000)
+  const workingHa = mm((workWidth * workLength) / 10000)
+  const lostHa = mm((disabledRows * rowSpacing * workLength) / 10000)
 
   return {
     fieldWidth, fieldLength,
+    headland: H,
+    workWidth: mm(workWidth),
+    workLength: mm(workLength),
     passes,
     strips,
     sprayerPasses,
-    lastSprayerPass: mm(fieldWidth - (sprayerPasses - 1) * S),
+    lastSprayerPass: mm(workWidth - (sprayerPasses - 1) * S),
     tramlines: strips.length / 2,
-    tramlineKm: mm((strips.length * fieldLength) / 1000),
+    tramlineKm: mm((strips.length * workLength) / 1000),
     disabledRows,
     areaHa,
+    workingHa,
+    headlandHa: mm(areaHa - workingHa),
     lostHa,
     lostPct: areaHa > 0 ? mm((lostHa / areaHa) * 100) : 0,
+  }
+}
+
+// ── Підбір колії ──────────────────────────────────────────────────────────
+//
+// Зворотна задача до головної. Замість «у тебе колесо стало на рядок 5 —
+// глуши його» програма має казати «зсунь колію на 70 см, і глушити не
+// доведеться нічого». Різниця між 2,1 і 2,8 м колії на соняшнику — це
+// кілька центнерів з поля, а коштує вона пів години з ключем.
+//
+// Рахуємо просто: беремо кожне правдоподібне значення колії й дивимось, чи
+// проходять обидва колеса міжряддям. Перебір дешевший за формулу й не бреше
+// на крайніх випадках.
+
+const TRACK_MIN = 1.2
+const TRACK_MAX = 3.6
+const TRACK_STEP = 0.05
+
+// Відстань від точки до найближчого центра рядка всередині проходу сівалки.
+// Рядки лежать періодично через міжряддя, починаючи з півміжряддя від краю.
+function distanceToRow(x, rowSpacing) {
+  const u = ((x % rowSpacing) + rowSpacing) % rowSpacing
+  return Math.abs(u - rowSpacing / 2)
+}
+
+export function suggestTracks({
+  rows, rowSpacing, sprayerWidth, tyreWidth, margin = 0.1, trackWidth, halfStart = false,
+}) {
+  const W = drillWidth(rows, rowSpacing)
+  const ratio = W > 0 ? sprayerWidth / W : 0
+  const k = Math.round(ratio)
+  if (!(W > 0) || Math.abs(ratio - k) > 1e-6 || k < 1) return null
+
+  const S = k * W
+  const half = tyreWidth / 2 + margin
+  const shift = halfStart ? W / 2 : 0
+
+  // Колесо ширше за міжряддя — жодна колія не врятує, тільки глушити рядки.
+  if (rowSpacing <= tyreWidth + 2 * margin) {
+    return { possible: false, rowSpacing, need: mm(tyreWidth + 2 * margin), options: [] }
+  }
+
+  const options = []
+  for (let T = TRACK_MIN; T <= TRACK_MAX + EPS; T += TRACK_STEP) {
+    const t = mm(T)
+    // Те саме положення коліс, що й у головному розрахунку.
+    const gaps = [S / 2 - t / 2, S / 2 + t / 2]
+      .map(p => distanceToRow(p + shift, rowSpacing))
+    const worst = Math.min(...gaps)
+    if (worst <= half + EPS) continue          // колесо чіпає рядок
+    options.push({ track: t, clearance: mm(worst - tyreWidth / 2) })
+  }
+
+  // Сусідні значення дають майже однаковий просвіт — лишаємо з кожної групи
+  // те, у якого він найбільший, інакше список перетворюється на кашу.
+  const merged = []
+  for (const o of options) {
+    const prev = merged[merged.length - 1]
+    if (prev && o.track - prev.track <= rowSpacing / 2 - EPS) {
+      if (o.clearance > prev.clearance) merged[merged.length - 1] = o
+      continue
+    }
+    merged.push(o)
+  }
+
+  const current = trackWidth != null
+    ? merged.find(o => Math.abs(o.track - trackWidth) < TRACK_STEP / 2) || null
+    : null
+
+  return {
+    possible: merged.length > 0,
+    rowSpacing,
+    current,                       // поточна колія вже добра?
+    // Найближчі до поточної — щоб не пропонувати перебудувати міст, коли
+    // вистачить пересунути колесо на одне міжряддя.
+    options: merged
+      .slice()
+      .sort((a, b) => Math.abs(a.track - (trackWidth ?? 2.2)) - Math.abs(b.track - (trackWidth ?? 2.2)))
+      .slice(0, 4)
+      .sort((a, b) => a.track - b.track),
+  }
+}
+
+// ── Друга машина на тих самих коліях ──────────────────────────────────────
+//
+// Розкидач добрив мусить їздити по вже нарізаних коліях, інакше він толочить
+// посів і вся затія втрачає сенс. Колії лежать через захват обприскувача, тож
+// розкидач потрапляє в них лише тоді, коли його захват кратний обприскувачу —
+// і тоді він користується кожною n-ю колією.
+export function secondMachine({ sprayerWidth, spreaderWidth, rows, rowSpacing }) {
+  if (!(spreaderWidth > 0) || !(sprayerWidth > 0)) return null
+  const W = drillWidth(rows, rowSpacing)
+  const ratio = spreaderWidth / sprayerWidth
+  const n = Math.round(ratio)
+  const fits = Math.abs(ratio - n) < 1e-6 && n >= 1
+
+  if (fits) {
+    return {
+      ok: true, every: n, spreaderWidth, sprayerWidth,
+      note: n === 1
+        ? 'Захвати збігаються — розкидач іде кожною колією.'
+        : `Розкидач іде кожною ${n}-ю колією.`,
+    }
+  }
+
+  // Що поміняти: захват обприскувача має бути кратним захвату сівалки і
+  // водночас укладатися в захват розкидача ціле число разів.
+  const fixes = []
+  for (let k = 1; k <= 12; k++) {
+    const S = mm(k * W)
+    if (S <= 0) continue
+    const r = spreaderWidth / S
+    if (Math.abs(r - Math.round(r)) < 1e-6 && Math.round(r) >= 1) {
+      fixes.push({ sprayerWidth: S, k, every: Math.round(r) })
+    }
+  }
+
+  // Буває, що жоден захват обприскувача не влаштовує обидві машини — тоді
+  // єдиний вихід із іншого боку: підібрати розкидач, кратний обприскувачу.
+  const spreaderOptions = []
+  for (let n = 1; n <= 4; n++) {
+    const w = mm(n * sprayerWidth)
+    if (Math.abs(w - spreaderWidth) > 0.01) spreaderOptions.push({ width: w, every: n })
+  }
+
+  return {
+    ok: false, spreaderWidth, sprayerWidth, ratio: mm(ratio),
+    fixes: fixes.slice(0, 6),
+    spreaderOptions: spreaderOptions.slice(0, 4),
   }
 }

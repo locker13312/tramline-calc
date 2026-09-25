@@ -145,3 +145,127 @@ test('без розмірів поля плану немає', () => {
   assert.equal(fieldPlan(computeTramlines(cereal), { ...plot, fieldWidth: 0 }), null)
   assert.equal(fieldPlan({ ok: false }, plot), null)
 })
+
+// ── Розворотні смуги ──────────────────────────────────────────────────────
+
+test('обсів забирає площу з-під колії, а не додає її', () => {
+  const r = computeTramlines(cereal)
+  const plain = fieldPlan(r, plot)
+  const withHead = fieldPlan(r, { ...plot, headland: 24 })   // 24 м ≈ два заходи
+
+  close(withHead.workWidth, 600 - 48, 'робоча ширина')
+  close(withHead.workLength, 800 - 48, 'робоча довжина')
+  assert.ok(withHead.tramlines < plain.tramlines, 'колій має стати менше')
+  assert.ok(withHead.lostHa < plain.lostHa, 'недосіяної площі теж менше')
+  assert.equal(withHead.areaHa, plain.areaHa, 'площа самого поля не змінюється')
+  assert.ok(withHead.headlandHa > 0)
+  close(withHead.workingHa + withHead.headlandHa, withHead.areaHa, 'обсів + робоча = поле')
+})
+
+test('колії не залазять в обсів', () => {
+  const p = fieldPlan(computeTramlines(cereal), { ...plot, headland: 24 })
+  assert.ok(p.strips.every(s => s.centre >= 24 && s.centre <= 600 - 24))
+  assert.ok(p.passes.every(x => x.from >= 24 - 0.001 && x.to <= 600 - 24 + 0.001))
+})
+
+test('обсів ширший за поле — плану немає, а не мінусова площа', () => {
+  const p = fieldPlan(computeTramlines(cereal), { ...plot, headland: 320 })
+  assert.equal(p.tooSmall, true)
+})
+
+// ── Підбір колії ──────────────────────────────────────────────────────────
+
+import { suggestTracks, secondMachine } from '../src/lib/tramline.js'
+
+test('на 70 см підказує колію, кратну парному числу міжрядь', () => {
+  const s = suggestTracks({
+    rows: 12, rowSpacing: 0.7, sprayerWidth: 25.2,
+    tyreWidth: 0.32, margin: 0.1, trackWidth: 2.1,
+  })
+  assert.equal(s.possible, true)
+  assert.equal(s.current, null, '2,1 м не проходить — саме тому й підбираємо')
+  const tracks = s.options.map(o => o.track)
+  assert.ok(tracks.includes(2.8), `серед варіантів має бути 2,8: ${tracks}`)
+  assert.ok(s.options.every(o => o.clearance > 0))
+})
+
+test('добру колію програма визнає доброю, а не пропонує міняти', () => {
+  const s = suggestTracks({
+    rows: 12, rowSpacing: 0.7, sprayerWidth: 25.2,
+    tyreWidth: 0.32, margin: 0.1, trackWidth: 2.8,
+  })
+  assert.ok(s.current, 'поточна колія має знайтись серед робочих')
+  assert.ok(s.current.clearance > 0.1)
+})
+
+test('на вузькому міжрядді чесно каже, що підбирати нічого', () => {
+  const s = suggestTracks({
+    rows: 24, rowSpacing: 0.15, sprayerWidth: 18,
+    tyreWidth: 0.35, margin: 0.05, trackWidth: 1.8,
+  })
+  assert.equal(s.possible, false)
+  assert.ok(s.need > 0.15, 'видно, скільки міжряддя для цього треба')
+  assert.deepEqual(s.options, [])
+})
+
+// ── Друга машина ──────────────────────────────────────────────────────────
+
+test('кратний розкидач іде кожною n-ю колією', () => {
+  const m = secondMachine({ sprayerWidth: 18, spreaderWidth: 36, rows: 24, rowSpacing: 0.15 })
+  assert.equal(m.ok, true)
+  assert.equal(m.every, 2)
+})
+
+test('некратний розкидач — видно, що поміняти з обох боків', () => {
+  const m = secondMachine({ sprayerWidth: 25.2, spreaderWidth: 36, rows: 12, rowSpacing: 0.7 })
+  assert.equal(m.ok, false)
+  // Тут жоден захват обприскувача не влаштовує обидві машини, тому лишається
+  // єдиний вихід — розкидач, кратний обприскувачу.
+  assert.ok(m.spreaderOptions.some(o => o.width === 25.2 * 2))
+})
+
+test('розкидач, кратний сівалці, дає готове рішення', () => {
+  const m = secondMachine({ sprayerWidth: 20, spreaderWidth: 33.6, rows: 12, rowSpacing: 0.7 })
+  assert.equal(m.ok, false)
+  assert.ok(m.fixes.some(f => f.sprayerWidth === 16.8 && f.every === 2),
+    `серед виправлень має бути захват 16,8: ${JSON.stringify(m.fixes)}`)
+})
+
+// ── Економіка ─────────────────────────────────────────────────────────────
+
+import { economics } from '../src/lib/economics.js'
+
+const money = { yieldPerHa: 3, pricePerTon: 18000, passes: 4, damagePct: 70, tyreWidth: 0.35 }
+
+test('колія коштує менше, ніж витоптування за сезон', () => {
+  const r = computeTramlines(cereal)
+  const p = fieldPlan(r, plot)
+  const e = economics(p, r, money)
+  assert.ok(e.withTramlines.uah > 0)
+  assert.ok(e.without.uah > e.withTramlines.uah, 'інакше колію не було б сенсу різати')
+  assert.equal(e.saving, e.without.uah - e.withTramlines.uah)
+})
+
+test('що більше обробок, то вигідніша колія', () => {
+  const r = computeTramlines(cereal)
+  const p = fieldPlan(r, plot)
+  const one = economics(p, r, { ...money, passes: 1 })
+  const six = economics(p, r, { ...money, passes: 6 })
+  assert.equal(one.withTramlines.uah, six.withTramlines.uah, 'колія — разова витрата')
+  assert.ok(six.without.uah > one.without.uah)
+  assert.ok(six.saving > one.saving)
+})
+
+test('витоптане не може перевищити саме поле', () => {
+  const r = computeTramlines(cereal)
+  const p = fieldPlan(r, plot)
+  const e = economics(p, r, { ...money, passes: 500 })
+  assert.ok(e.without.ha <= p.workingHa)
+})
+
+test('без цін економіки немає — і вона про це мовчить, а не вигадує', () => {
+  const r = computeTramlines(cereal)
+  const p = fieldPlan(r, plot)
+  assert.equal(economics(p, r, { ...money, pricePerTon: 0 }), null)
+  assert.equal(economics(null, r, money), null)
+})

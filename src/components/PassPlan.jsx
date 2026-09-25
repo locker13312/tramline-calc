@@ -1,49 +1,32 @@
-import { rangeText as range, plural } from '../lib/format'
+import { rangeText, plural } from '../lib/format'
 
-// Те, що механізатор тримає перед очима в кабіні: по одному рядку на прохід,
-// повторювати з першого після останнього.
+// Цикл проходів у вигляді, який можна тримати перед очима в кабіні: одна
+// картка на прохід, зліва направо, далі спочатку.
 export default function PassPlan({ result }) {
   if (!result?.ok) return null
 
   return (
-    <div className="card">
-      <h2>План проходів</h2>
-      <p className="muted">
-        Цикл із {result.cycle} {plural(result.cycle, 'проходу', 'проходів', 'проходів')} —
-        далі повторюється з першого. Секції рахуються зліва направо за напрямком руху.
-      </p>
+    <div className="panel">
+      <h2>цикл сівби — {result.cycle} {plural(result.cycle, 'прохід', 'проходи', 'проходів')}</h2>
 
-      <ol className="plan">
+      <div className="cycle">
         {result.passes.map((p) => (
-          <li key={p.n} className={p.disabled.length ? 'plan-hit' : ''}>
-            <span className="plan-n">{p.n}</span>
-            <span className="plan-body">
-              {p.partial && (
-                <b className="plan-warn">
-                  Половинний прохід — сіють лише секції {range(p.sowingRows)}.{' '}
-                </b>
-              )}
-              {p.disabled.length === 0 ? (
-                <span className="plan-ok">усі секції сіють</span>
-              ) : (
-                <>
-                  вимкнути <b>{range(p.disabled)}</b>{' '}
-                  <span className="muted">
-                    ({p.disabled.length} {plural(p.disabled.length, 'секція', 'секції', 'секцій')})
-                  </span>
-                </>
-              )}
-              {p.clearances.map((c, i) => (
-                <div key={i} className="plan-note">
-                  колесо йде міжряддям, до найближчого рядка {fmt(c.gap * 100)} см
-                </div>
-              ))}
-            </span>
-          </li>
+          <div key={p.n} className={`cycle-pass${p.disabled.length ? ' is-hit' : ''}`}>
+            <div className="cycle-n">ПРОХІД {p.n}</div>
+            <div className="cycle-what">
+              {p.disabled.length ? `вимкнути ${rangeText(p.disabled)}` : 'сіють усі'}
+            </div>
+            {p.partial && (
+              <div className="cycle-note">половинний: сіють лише {rangeText(p.sowingRows)}</div>
+            )}
+            {p.clearances.map((c, i) => (
+              <div key={i} className="cycle-note">
+                колесо міжряддям, до рядка {Math.round(c.gap * 100)} см
+              </div>
+            ))}
+          </div>
         ))}
-      </ol>
+      </div>
     </div>
   )
 }
-
-const fmt = (v) => Math.round(v * 10) / 10
