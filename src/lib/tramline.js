@@ -66,8 +66,13 @@ function gcd(a, b) { return b ? gcd(b, a % b) : a }
 // Відношення захватів як дріб p/q. Ціле число — звичайний ритм. Половина
 // (4,5 · 5,5 …) — асиметричний: сівалка 4 м робить колію під обприскувач
 // 18 м, глушачи то один бік, то другий, і візерунок повторюється через
-// дев'ять проходів замість чотирьох. Виробники такі ритми теж мають.
-function asFraction(r, maxQ = 4) {
+// девʼять проходів замість чотирьох. Виробники такі ритми теж мають.
+//
+// Знаменник більший за два не беремо навмисно. Формально 3 м під 16 м дають
+// «ритм 16» — візерунок, що замикається аж через три проходи обприскувача.
+// Такого не робить жодна система, і механізатор такий цикл не відрахує;
+// чесніше сказати «не поєднуються», ніж видати непрацездатну пораду.
+function asFraction(r, maxQ = 2) {
   if (!(r > 0)) return null
   for (let q = 1; q <= maxQ; q++) {
     const p = r * q
@@ -465,4 +470,12 @@ export function secondMachine({ sprayerWidth, spreaderWidth, rows, rowSpacing })
     fixes: fixes.slice(0, 6),
     spreaderOptions: spreaderOptions.slice(0, 4),
   }
+}
+
+// Ритм для пари захватів — без колії, шини й решти: саме те, що показує
+// паперовий довідник виробника. Використовується таблицею поєднань.
+export function rhythmOf(sprayerWidth, drill) {
+  const frac = drill > 0 ? asFraction(sprayerWidth / drill) : null
+  if (!frac || frac.p < 1) return null
+  return { rhythm: frac.p, symmetric: frac.q === 1 && frac.p % 2 === 1 }
 }

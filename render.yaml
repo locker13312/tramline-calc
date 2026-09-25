@@ -1,24 +1,29 @@
 # ── Render Blueprint ──────────────────────────────────────
-# Статичний сайт: бекенда немає, усе рахується в браузері. Render збирає
-# проєкт і роздає готовий dist/ зі свого CDN — на відміну від web-сервісу на
-# безкоштовному плані, статика не засинає, тож посилання відкривається одразу
-# навіть якщо ним не користувалися тиждень.
+# Раніше це була статика. З появою акаунтів потрібен процес, який тримає
+# сесії й ходить у базу, тож сервіс став вебсервісом: той самий Express
+# віддає і API, і зібраний фронтенд — окремий статичний сервіс дав би лише
+# другий деплой і зайвий домен.
+#
+# Ціна цієї зміни: безкоштовний вебсервіс на Render засинає після ~15 хвилин
+# без запитів і прокидається пів хвилини. Для калькулятора, який відкривають
+# раз на день, це помітно — але без бекенда акаунтів не буває.
+#
+# База — Neon (той самий підхід, що й у Lytware). DATABASE_URL задається в
+# дашборді Render і в git не потрапляє.
 
 services:
   - type: web
     name: tramline-calc
-    runtime: static
+    runtime: node
+    plan: free
     branch: main
     buildCommand: npm install && npm run build
-    staticPublishPath: ./dist
-
-    headers:
-      # Хеш у назві файлу змінюється з кожною збіркою, тож ассети можна
-      # кешувати назавжди, а саму сторінку — ні, інакше люди місяцями
-      # сидітимуть на старій версії.
-      - path: /assets/*
-        name: Cache-Control
-        value: public, max-age=31536000, immutable
-      - path: /index.html
-        name: Cache-Control
-        value: no-cache
+    startCommand: npm start
+    healthCheckPath: /api/health
+    envVars:
+      - key: DATABASE_URL
+        sync: false
+      - key: JWT_SECRET
+        generateValue: true
+      - key: NODE_VERSION
+        value: 20

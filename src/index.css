@@ -265,3 +265,84 @@ body {
   border: 1px solid var(--crop); border-radius: 999px; padding: 4px 12px;
 }
 .rhythm i { font-style: normal; font-weight: 400; font-size: 11px; color: var(--ink-2); }
+
+/* ── Шапка з акаунтом ─────────────────────────────────── */
+.top-name { flex: 1; min-width: 0; }
+.top-auth { display: flex; align-items: center; gap: 10px; flex-shrink: 0; }
+.who {
+  font-size: 12.5px; color: var(--ink-2); font-family: var(--mono);
+  max-width: 200px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+
+/* ── Вкладки ──────────────────────────────────────────── */
+.tabs {
+  display: flex; gap: 2px; margin: -8px 0 22px;
+  border-bottom: 1px solid var(--line); overflow-x: auto;
+}
+.tab {
+  flex-shrink: 0; padding: 10px 16px; border: none; background: none;
+  font: 500 14px var(--sans); color: var(--ink-2); cursor: pointer;
+  border-bottom: 2px solid transparent; margin-bottom: -1px;
+}
+.tab:hover { color: var(--ink); }
+.tab.is-on { color: var(--crop); border-bottom-color: var(--crop); font-weight: 600; }
+
+/* ── Кнопки ───────────────────────────────────────────── */
+.btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 7px;
+  padding: 10px 18px; border-radius: 8px; cursor: pointer;
+  font: 600 14px var(--sans);
+  color: #fff; background: var(--crop); border: 1px solid var(--crop);
+}
+.btn:hover { filter: brightness(1.08); }
+.btn:disabled { opacity: 0.55; cursor: not-allowed; filter: none; }
+.btn-sm { padding: 7px 13px; font-size: 13px; }
+.btn-quiet { background: transparent; color: var(--ink-2); border-color: var(--line-2); }
+.btn-quiet:hover { color: var(--ink); filter: none; border-color: var(--ink-3); }
+
+/* ── Вхід ─────────────────────────────────────────────── */
+.narrow { max-width: 460px; }
+.auth form { display: block; }
+.auth .btn { width: 100%; margin-top: 4px; }
+.seg { display: flex; gap: 2px; background: var(--sunken); border-radius: 9px; padding: 3px; margin-bottom: 16px; }
+.seg button {
+  flex: 1; padding: 8px 10px; border: none; border-radius: 7px; cursor: pointer;
+  font: 500 13.5px var(--sans); color: var(--ink-2); background: transparent;
+}
+.seg button.is-on { background: var(--panel); color: var(--ink); font-weight: 600; box-shadow: 0 1px 3px rgba(0,0,0,0.08); }
+
+/* ── Збережене ────────────────────────────────────────── */
+.save-row { display: flex; gap: 9px; }
+.save-row input {
+  flex: 1; min-width: 0; padding: 9px 11px; font: 500 15px var(--sans);
+  color: var(--ink); background: var(--sunken);
+  border: 1px solid var(--line); border-radius: 8px;
+}
+.save-row input:focus { outline: none; border-color: var(--crop); box-shadow: 0 0 0 3px var(--crop-soft); }
+.saved-row { justify-content: space-between; align-items: center; }
+.saved-main { min-width: 0; }
+.saved-name { font-weight: 600; font-size: 14.5px; }
+.saved-actions { display: flex; gap: 7px; flex-shrink: 0; }
+
+/* ── Довідник ─────────────────────────────────────────── */
+.table-scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+.rhythm-table { border-collapse: collapse; font-family: var(--mono); font-size: 13px; }
+.rhythm-table th, .rhythm-table td {
+  border: 1px solid var(--line); padding: 7px 11px; text-align: center; white-space: nowrap;
+}
+.rhythm-table thead th, .rhythm-table tbody th {
+  background: var(--sunken); color: var(--ink-2); font-weight: 600; font-size: 12px;
+}
+.rhythm-table thead th:first-child { text-align: left; }
+.rhythm-table tbody th { text-align: right; }
+.rhythm-table td { color: var(--crop); font-weight: 600; }
+.rhythm-table td.is-async { color: var(--track); }
+.rhythm-table td.is-none { color: var(--ink-3); font-weight: 400; }
+.rhythm-table td.is-here { outline: 2px solid var(--crop); outline-offset: -2px; background: var(--crop-soft); }
+
+@media (max-width: 900px) {
+  .top { flex-wrap: wrap; }
+  .top-auth { width: 100%; justify-content: flex-start; }
+  .save-row { flex-direction: column; }
+  .saved-row { flex-direction: column; align-items: stretch; gap: 10px; }
+}

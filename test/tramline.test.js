@@ -175,7 +175,7 @@ test('обсів ширший за поле — плану немає, а не �
 
 // ── Підбір колії ──────────────────────────────────────────────────────────
 
-import { suggestTracks, secondMachine } from '../src/lib/tramline.js'
+import { suggestTracks, secondMachine, rhythmOf } from '../src/lib/tramline.js'
 
 test('на 70 см підказує колію, кратну парному числу міжрядь', () => {
   const s = suggestTracks({
@@ -326,4 +326,18 @@ test('асиметричний ритм розкладається на поле
 test('справді несумісні захвати досі відхиляються', () => {
   const r = computeTramlines({ ...cereal, sprayerWidth: 20 })   // 5,55 проходу
   assert.equal(r.ok, false)
+})
+
+test('непрактичні ритми не видаються за робочі', () => {
+  // 3 м під 16 м формально дає візерунок на 16 проходів, що замикається аж
+  // через три проходи обприскувача. Жодна система так не працює, і людина
+  // такий цикл не відрахує — має бути чесна відмова.
+  assert.equal(rhythmOf(16, 3), null)
+  assert.equal(rhythmOf(21, 4), null)
+  assert.equal(rhythmOf(20, 3), null)
+
+  // А половинні ритми лишаються — це справжня практика.
+  assert.deepEqual(rhythmOf(18, 4), { rhythm: 9, symmetric: false })
+  assert.deepEqual(rhythmOf(18, 6), { rhythm: 3, symmetric: true })
+  assert.deepEqual(rhythmOf(24, 6), { rhythm: 4, symmetric: false })
 })
