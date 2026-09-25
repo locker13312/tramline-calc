@@ -17,6 +17,9 @@ services:
     runtime: node
     plan: free
     branch: main
+    # Явно, хоч це і є типовим значенням: коли автодеплой мовчить, перше, що
+    # перевіряють, — чи він узагалі ввімкнений, і відповідь має бути в репозиторії.
+    autoDeploy: true
     buildCommand: npm install && npm run build
     startCommand: npm start
     healthCheckPath: /api/health
