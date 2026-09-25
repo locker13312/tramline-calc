@@ -27,7 +27,15 @@ app.use('/api/auth', (req, res, next) => {
   next()
 })
 
-app.get('/api/health', (req, res) => res.json({ ok: true }))
+// Номер коміту, який зараз живе на проді. Render кладе його в оточення сам.
+// Без цього «чи задеплоїлось?» доводиться вгадувати по хешу бандла, а він
+// змінюється не від кожного коміту.
+const startedAt = new Date().toISOString()
+app.get('/api/health', (req, res) => res.json({
+  ok: true,
+  commit: (process.env.RENDER_GIT_COMMIT || 'local').slice(0, 7),
+  startedAt,
+}))
 app.use('/api/auth', authRoutes)
 app.use('/api', savedRoutes)
 
