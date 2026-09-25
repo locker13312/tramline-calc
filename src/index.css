@@ -253,3 +253,15 @@ body {
 /* Відповідь — над усім, на всю ширину: і на телефоні її видно одразу, і на
    десктопі вона читається як заголовок, а не як ще одна картка збоку. */
 .headline { margin-bottom: 22px; }
+
+/* Ритм — число, яке вводять у термінал сівалки. Ставимо його поруч із
+   відповіддю, бо це друга річ, по яку сюди приходять. */
+.verdict-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin-bottom: 8px; }
+.verdict-head .verdict-kicker { margin-bottom: 0; }
+.rhythm {
+  display: inline-flex; align-items: baseline; gap: 7px;
+  font-family: var(--mono); font-size: 13px; font-weight: 600;
+  color: var(--crop); background: var(--crop-soft);
+  border: 1px solid var(--crop); border-radius: 999px; padding: 4px 12px;
+}
+.rhythm i { font-style: normal; font-weight: 400; font-size: 11px; color: var(--ink-2); }

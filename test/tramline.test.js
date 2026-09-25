@@ -73,7 +73,7 @@ test('колія, кратна непарному числу міжрядь — 
 test('некратний захват — колія неможлива, і видно чим це лікувати', () => {
   const r = computeTramlines({ ...cereal, sprayerWidth: 20 })
   assert.equal(r.ok, false)
-  assert.ok(r.warnings[0].includes('не ділиться'))
+  assert.ok(r.warnings[0].includes('не зводяться до робочого ритму'))
   assert.ok(r.suggestions.sprayerWidths.some((o) => o.width === 18))
 })
 
@@ -268,4 +268,62 @@ test('без цін економіки немає — і вона про це м
   const p = fieldPlan(r, plot)
   assert.equal(economics(p, r, { ...money, pricePerTon: 0 }), null)
   assert.equal(economics(null, r, money), null)
+})
+
+// ── Ритм ──────────────────────────────────────────────────────────────────
+//
+// Ритм — число проходів до повтору візерунка; саме його механізатор вводить
+// у термінал сівалки. Половинні відношення захватів (4,5 · 5,5) дають
+// асиметричний ритм: на одному проході глушать один бік, на іншому другий.
+// Так роблять серійні сівалки, тож відмовляти в такій комбінації не можна.
+
+test('ціле відношення дає симетричний ритм, що дорівнює відношенню', () => {
+  const r = computeTramlines(cereal)          // 18 / 3,6 = 5
+  assert.equal(r.rhythm, 5)
+  assert.equal(r.symmetric, true)
+  assert.equal(r.sprayerPassesPerCycle, 1)
+})
+
+test('половинне відношення не відмова, а асиметричний ритм', () => {
+  // Сівалка 4 м (32 × 12,5 см) під обприскувач 18 м — 4,5 проходу.
+  const r = computeTramlines({
+    rows: 32, rowSpacing: 0.125, sprayerWidth: 18,
+    trackWidth: 1.8, tyreWidth: 0.35, margin: 0.05,
+  })
+  assert.equal(r.ok, true, 'таку комбінацію серійні сівалки роблять')
+  assert.equal(r.rhythm, 9, 'візерунок повторюється через 9 проходів')
+  assert.equal(r.sprayerPassesPerCycle, 2, 'на два проходи обприскувача')
+  assert.equal(r.symmetric, false)
+  assert.ok(r.passes.filter(p => p.disabled.length).length > 2,
+    'колія збирається з половинок на різних проходах')
+})
+
+test('у циклі рівно стільки колій, скільки проходів обприскувача', () => {
+  const r = computeTramlines({
+    rows: 32, rowSpacing: 0.125, sprayerWidth: 18,
+    trackWidth: 1.8, tyreWidth: 0.35, margin: 0.05,
+  })
+  assert.equal(r.strips.length, 2 * r.sprayerPassesPerCycle, 'по два сліди на прохід')
+  assert.equal(r.period, 9 * r.drillWidth)
+})
+
+test('асиметричний ритм розкладається на поле без розривів', () => {
+  const r = computeTramlines({
+    rows: 32, rowSpacing: 0.125, sprayerWidth: 18,
+    trackWidth: 1.8, tyreWidth: 0.35, margin: 0.05,
+  })
+  const p = fieldPlan(r, { fieldWidth: 600, fieldLength: 800, rowSpacing: 0.125, headland: 0 })
+  assert.ok(p.strips.every(s => s.centre >= 0 && s.centre <= 600))
+  // Колії стоять через захват обприскувача по всій ширині.
+  const centres = p.strips.map(s => s.centre).sort((a, b) => a - b)
+  const pairs = []
+  for (let i = 0; i < centres.length; i += 2) pairs.push((centres[i] + centres[i + 1]) / 2)
+  for (let i = 1; i < pairs.length; i++) {
+    close(pairs[i] - pairs[i - 1], 18, 'відстань між сусідніми коліями')
+  }
+})
+
+test('справді несумісні захвати досі відхиляються', () => {
+  const r = computeTramlines({ ...cereal, sprayerWidth: 20 })   // 5,55 проходу
+  assert.equal(r.ok, false)
 })

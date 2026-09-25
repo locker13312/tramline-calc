@@ -59,6 +59,27 @@ export function suggestions({ rows, rowSpacing, sprayerWidth }) {
  *
  * Повертає цикл проходів: що робити на кожному, поки візерунок не повториться.
  */
+// Найбільший спільний дільник — щоб звести відношення захватів до
+// нескоротного дробу.
+function gcd(a, b) { return b ? gcd(b, a % b) : a }
+
+// Відношення захватів як дріб p/q. Ціле число — звичайний ритм. Половина
+// (4,5 · 5,5 …) — асиметричний: сівалка 4 м робить колію під обприскувач
+// 18 м, глушачи то один бік, то другий, і візерунок повторюється через
+// дев'ять проходів замість чотирьох. Виробники такі ритми теж мають.
+function asFraction(r, maxQ = 4) {
+  if (!(r > 0)) return null
+  for (let q = 1; q <= maxQ; q++) {
+    const p = r * q
+    if (Math.abs(p - Math.round(p)) < 1e-6) {
+      const P = Math.round(p)
+      const g = gcd(P, q)
+      return { p: P / g, q: q / g }
+    }
+  }
+  return null
+}
+
 export function computeTramlines({
   rows,
   rowSpacing,
@@ -71,22 +92,25 @@ export function computeTramlines({
   const warnings = []
   const W = drillWidth(rows, rowSpacing)
   const ratio = W > 0 ? sprayerWidth / W : 0
-  const k = Math.round(ratio)
-  const whole = W > 0 && Math.abs(ratio - k) < 1e-6 && k >= 1
+  const frac = W > 0 ? asFraction(ratio) : null
+  const k = frac ? frac.p : 0            // проходів сівалки до повтору
+  const q = frac ? frac.q : 0            // проходів обприскувача в тому ж циклі
+  const whole = !!frac && k >= 1
 
   if (!whole) {
     return {
       ok: false, drillWidth: mm(W), ratio: mm(ratio), cycle: 0, passes: [],
       warnings: [
-        `Захват обприскувача (${sprayerWidth} м) не ділиться націло на захват сівалки ` +
-        `(${mm(W)} м) — виходить ${mm(ratio)} проходу. Колія без цього неможлива: ` +
-        `колеса щоразу падатимуть у нове місце.`,
+        `Захват обприскувача (${sprayerWidth} м) і захват сівалки (${mm(W)} м) ` +
+        `не зводяться до робочого ритму — виходить ${mm(ratio)} проходу. ` +
+        `Колеса щоразу падатимуть у нове місце.`,
       ],
       suggestions: suggestions({ rows, rowSpacing, sprayerWidth }),
     }
   }
 
-  const S = k * W
+  const S = mm(sprayerWidth)
+  const period = k * W                         // довжина повного циклу
   const half = tyreWidth / 2 + margin          // піврозмір смуги під одне колесо
   // Половинний перший прохід зсуває сітку сівалки на пів захвату — саме так
   // парний коефіцієнт перетворюють з двох половинок колії на одну цілу.
@@ -99,13 +123,19 @@ export function computeTramlines({
     warnings.push('Колія обприскувача не може бути вужчою за шину.')
   }
 
-  // Колеса першого проходу обприскувача. Далі візерунок повторюється з періодом S.
-  const wheels = [S / 2 - trackWidth / 2, S / 2 + trackWidth / 2]
-  const strips = wheels.map((centre) => ({
-    centre: mm(centre),
-    from: mm(centre - half),
-    to: mm(centre + half),
-  }))
+  // Колеса всіх проходів обприскувача, що вкладаються в один цикл. Для цілого
+  // відношення такий прохід один, для половинного — два.
+  const strips = []
+  for (let j = 0; j < q; j++) {
+    for (const centre of [(j + 0.5) * S - trackWidth / 2, (j + 0.5) * S + trackWidth / 2]) {
+      strips.push({
+        pass: j + 1,
+        centre: mm(centre),
+        from: mm(centre - half),
+        to: mm(centre + half),
+      })
+    }
+  }
 
   const passes = []
   for (let i = 0; i < k; i++) {
@@ -159,6 +189,7 @@ export function computeTramlines({
     })
   }
 
+  const hitPassCount = () => passes.filter((p) => p.disabled.length > 0).length
   const disabledPerCycle = passes.reduce((a, p) => a + p.disabled.length, 0)
   const rowsPerCycle = rows * k
 
@@ -168,19 +199,31 @@ export function computeTramlines({
       'Перевірте лише, щоб сівалка й обприскувач заходили з того самого краю поля.',
     )
   }
-  if (passes.filter((p) => p.disabled.length > 0).length > 1 && !halfStart) {
+  if (q === 1 && k % 2 === 0 && !halfStart && hitPassCount() > 1) {
     warnings.push(
-      'Колія розпадається на два сусідні проходи (парний коефіцієнт). ' +
-      'Увімкніть половинний перший прохід, щоб зробити її за один.',
+      'Колія розпадається на два сусідні проходи: центр обприскувача припадає ' +
+      'на стик проходів сівалки. Увімкніть половинний перший прохід, щоб ' +
+      'зробити її за один.',
     )
   }
+
+  // Ритм — це число, яке механізатор вводить у термінал сівалки: скільки
+  // проходів до повтору візерунка. Симетричний — уся колія лягає в один
+  // прохід; асиметричний — по половині на різних проходах, і саме так
+  // працюють половинні відношення на кшталт 4,5.
+  const hitPasses = passes.filter((p) => p.disabled.length).length
+  const symmetric = hitPasses <= 1
 
   return {
     ok: true,
     drillWidth: mm(W),
-    sprayerWidth: mm(S),
+    sprayerWidth: S,
+    period: mm(period),
     shift: mm(shift),
-    ratio: k,
+    ratio: mm(ratio),
+    rhythm: k,
+    symmetric,
+    sprayerPassesPerCycle: q,
     cycle: k,
     parity: k % 2 === 0 ? 'even' : 'odd',
     strips,
@@ -239,17 +282,21 @@ export function fieldPlan(result, { fieldWidth, fieldLength, rowSpacing, headlan
   }
 
   // Колії: візерунок першого проходу обприскувача, зсунутий на j · S.
+  // Візерунок повторюється через період циклу (k проходів сівалки), а не
+  // через захват обприскувача: при асиметричному ритмі це різні довжини.
+  const period = result.period || S
   const strips = []
   const sprayerPasses = Math.ceil(workWidth / S)
-  for (let j = 0; j < sprayerPasses; j++) {
+  const cycles = Math.ceil(workWidth / period)
+  for (let n = 0; n < cycles; n++) {
     for (const s of result.strips) {
-      const centre = x0 + s.centre + j * S
+      const centre = x0 + s.centre + n * period
       if (centre < x0 || centre > x1) continue   // колія за межами робочої частини
       strips.push({
-        pass: j + 1,
+        pass: n * result.sprayerPassesPerCycle + s.pass,
         centre: mm(centre),
-        from: mm(Math.max(x0 + s.from + j * S, x0)),
-        to: mm(Math.min(x0 + s.to + j * S, x1)),
+        from: mm(Math.max(x0 + s.from + n * period, x0)),
+        to: mm(Math.min(x0 + s.to + n * period, x1)),
       })
     }
   }
@@ -314,11 +361,10 @@ export function suggestTracks({
   rows, rowSpacing, sprayerWidth, tyreWidth, margin = 0.1, trackWidth, halfStart = false,
 }) {
   const W = drillWidth(rows, rowSpacing)
-  const ratio = W > 0 ? sprayerWidth / W : 0
-  const k = Math.round(ratio)
-  if (!(W > 0) || Math.abs(ratio - k) > 1e-6 || k < 1) return null
+  const frac = W > 0 ? asFraction(sprayerWidth / W) : null
+  if (!frac || frac.p < 1) return null
 
-  const S = k * W
+  const S = mm(sprayerWidth)
   const half = tyreWidth / 2 + margin
   const shift = halfStart ? W / 2 : 0
 
@@ -331,9 +377,13 @@ export function suggestTracks({
   for (let T = TRACK_MIN; T <= TRACK_MAX + EPS; T += TRACK_STEP) {
     const t = mm(T)
     // Те саме положення коліс, що й у головному розрахунку.
-    const gaps = [S / 2 - t / 2, S / 2 + t / 2]
-      .map(p => distanceToRow(p + shift, rowSpacing))
-    const worst = Math.min(...gaps)
+    // Перевіряємо всі проходи обприскувача циклу, а не лише перший: в
+    // асиметричному ритмі їх два, і колія має минати рядки в обох.
+    const wheels = []
+    for (let j = 0; j < frac.q; j++) {
+      wheels.push((j + 0.5) * S - t / 2, (j + 0.5) * S + t / 2)
+    }
+    const worst = Math.min(...wheels.map(p => distanceToRow(p + shift, rowSpacing)))
     if (worst <= half + EPS) continue          // колесо чіпає рядок
     options.push({ track: t, clearance: mm(worst - tyreWidth / 2) })
   }
