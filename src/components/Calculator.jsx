@@ -2,12 +2,13 @@ import { useMemo } from 'react'
 import { computeTramlines, fieldPlan, suggestTracks, secondMachine } from '../lib/tramline'
 import { economics } from '../lib/economics'
 import { CROPS, SPRAYER_WIDTHS, SPRAYER_PRESETS } from '../lib/presets'
-import { num } from '../lib/format'
+import { num, plural } from '../lib/format'
 import Verdict from './Verdict'
 import { TrackAdvice, SpreaderAdvice } from './Advice'
 import FieldPlan from './FieldPlan'
 import FieldDiagram from './FieldDiagram'
 import PassPlan from './PassPlan'
+import PassList from './PassList'
 import Money from './Money'
 
 // Сам розрахунок: форма ліворуч, відповідь і докази праворуч. Живе окремо
@@ -75,7 +76,8 @@ export default function Calculator({ input, setInput }) {
             <div className="verdict-sub">
               {num(input.sprayerWidth)} м на {num(result.drillWidth)} м — це{' '}
               {num(result.ratio)} проходу. Колеса щоразу падатимуть у нове місце,
-              і жодної колії не вийде.
+              і жодної колії не вийде. Це не глухий кут: тією самою штангою
+              можна їхати вужче — варіанти нижче.
             </div>
           </div>
         </div>
@@ -215,7 +217,13 @@ export default function Calculator({ input, setInput }) {
 
         <div className="stack">
           {!result.ok ? (
-            <Fixes s={result.suggestions} rowSpacing={input.rowSpacing} />
+            <Fixes
+              s={result.suggestions}
+              rowSpacing={input.rowSpacing}
+              rows={input.rows}
+              boomWidth={input.sprayerWidth}
+              onPick={(patch) => setInput((st) => ({ ...st, ...patch }))}
+            />
           ) : (
             <>
               {plan && !plan.tooSmall && (
@@ -243,6 +251,7 @@ export default function Calculator({ input, setInput }) {
               <TrackAdvice advice={advice} trackWidth={input.trackWidth} />
               <SpreaderAdvice spreader={spreader} />
               <PassPlan result={result} />
+              <PassList plan={plan} rowSpacing={input.rowSpacing} />
 
               {plan && !plan.tooSmall && (
                 <div className="panel">
@@ -283,32 +292,83 @@ function Figure({ k, v, s }) {
   )
 }
 
-function Fixes({ s, rowSpacing }) {
+// Що робити, коли захвати не поєднуються.
+//
+// Порядок відповідей тут не випадковий. Штангу ніхто не міняє через колію,
+// тому першою йде та, що нічого не коштує: їхати наявною штангою вужче,
+// перекриваючи сусідній прохід. Далі — звузити сівалку. І аж потім
+// «купіть інший обприскувач», бо це не порада, а констатація.
+function Fixes({ s, rowSpacing, rows, boomWidth, onPick }) {
   if (!s) return null
+  const working = s.working ?? []
+
   return (
     <div className="panel">
-      <h2>що поміняти</h2>
+      <h2>як із цього вийти</h2>
+
+      {working.length > 0 && (
+        <>
+          <p className="note" style={{ margin: '0 0 10px' }}>
+            Штанга лишається {num(boomWidth)} м — міняється робоча ширина: скільки
+            захоплює корисно, а решта йде в перекриття сусіднього проходу.
+            Крайні секції штанги на перекритті вимикають, щоб не лити двічі.
+          </p>
+          <div className="advice">
+            {working.map((o) => (
+              <button
+                key={o.width}
+                type="button"
+                className={`opt opt-act${o.off === 0 ? ' is-current' : ''}`}
+                onClick={() => onPick({ sprayerWidth: o.width, rows: o.rows })}
+              >
+                <span className="opt-v">{num(o.width)} м</span>
+                <span className="opt-t">
+                  {o.off === 0
+                    ? `сівалка без змін, ${o.k} прох.`
+                    : `сівалка ${o.rows} ${plural(o.rows, 'секція', 'секції', 'секцій')} із ${rows} (заглушити ${o.off} з краю), ${o.k} прох.`}
+                  {' · '}перекриття {num(o.overlap)} м ({num(o.overlapPct, 0)} %)
+                </span>
+              </button>
+            ))}
+          </div>
+          <p className="note" style={{ margin: '10px 0 0' }}>
+            Натисніть варіант — він підставиться у форму, і розрахунок покаже
+            проходи із секціями.
+          </p>
+        </>
+      )}
+
+      {s.drills.length > 0 && (
+        <>
+          <p className="note" style={{ margin: '18px 0 10px' }}>
+            Сівалка, що ділить {num(boomWidth)} м рівно, без перекриття:
+          </p>
+          <div className="advice">
+            {s.drills.slice(0, 3).map((o) => (
+              <button
+                key={`${o.k}-${o.rows}`}
+                type="button"
+                className="opt opt-act"
+                onClick={() => onPick({ rows: o.rows })}
+              >
+                <span className="opt-v">{o.rows} секцій</span>
+                <span className="opt-t">× {num(rowSpacing)} м = {num(o.width)} м, {o.k} прох.</span>
+              </button>
+            ))}
+          </div>
+        </>
+      )}
+
       {s.sprayerWidths.length > 0 && (
         <>
-          <p className="note" style={{ margin: '0 0 10px' }}>Захват обприскувача:</p>
+          <p className="note" style={{ margin: '18px 0 10px' }}>
+            Або інший обприскувач під наявну сівалку:
+          </p>
           <div className="advice">
             {s.sprayerWidths.slice(0, 4).map((o) => (
               <div key={o.k} className="opt">
                 <span className="opt-v">{num(o.width)} м</span>
                 <span className="opt-t">{o.k} прох. сівалки</span>
-              </div>
-            ))}
-          </div>
-        </>
-      )}
-      {s.drills.length > 0 && (
-        <>
-          <p className="note" style={{ margin: '14px 0 10px' }}>Або сівалка при тому ж обприскувачі:</p>
-          <div className="advice">
-            {s.drills.slice(0, 3).map((o) => (
-              <div key={`${o.k}-${o.rows}`} className="opt">
-                <span className="opt-v">{o.rows} секцій</span>
-                <span className="opt-t">× {num(rowSpacing)} м = {num(o.width)} м, {o.k} прох.</span>
               </div>
             ))}
           </div>

@@ -341,3 +341,106 @@ test('непрактичні ритми не видаються за робоч�
   assert.deepEqual(rhythmOf(18, 6), { rhythm: 3, symmetric: true })
   assert.deepEqual(rhythmOf(24, 6), { rhythm: 4, symmetric: false })
 })
+
+import { workingWidths } from '../src/lib/tramline.js'
+
+// ── Штанга 16 м на сівалці 3,6 м ──────────────────────────────────────────
+//
+// Випадок із життя: 24 секції по 15 см дають 3,6 м, а штанга 16 м. 16 не
+// ділиться на 3,6, і 16 м не кратні 15 см узагалі — точного збігу не існує.
+// Програма має не впертись у «не поєднуються», а показати, як цією ж штангою
+// працювати.
+
+const boom16 = { rows: 24, rowSpacing: 0.15, sprayerWidth: 16 }
+
+test('штанга 16 м на сівалці 3,6 м — прямої колії немає', () => {
+  const r = computeTramlines({ ...boom16, trackWidth: 2.45, tyreWidth: 0.4, margin: 0.05 })
+  assert.equal(r.ok, false)
+  assert.ok(r.suggestions.working.length > 0, 'має бути запасний хід')
+})
+
+test('робочі ширини не перевищують штангу', () => {
+  for (const o of workingWidths({ ...boom16, boomWidth: 16 })) {
+    assert.ok(o.width <= 16, `${o.width} м ширше за штангу`)
+    assert.equal(o.overlap, Math.round((16 - o.width) * 1000) / 1000)
+  }
+})
+
+test('перший варіант під 16 м — не чіпати сівалку, їхати на 14,4 м', () => {
+  const [best] = workingWidths({ ...boom16, boomWidth: 16 })
+  assert.equal(best.width, 14.4)
+  assert.equal(best.off, 0, 'сівалку не переробляють, поки є чим заплатити перекриттям')
+  assert.equal(best.k, 4)
+})
+
+test('найщільніше перекриття теж пропонується — ціною трьох секцій', () => {
+  const tight = workingWidths({ ...boom16, boomWidth: 16 })
+    .find((o) => o.width === 15.75)
+  assert.ok(tight, '15,75 м має бути в списку')
+  assert.equal(tight.rows, 21)
+  assert.equal(tight.off, 3)
+  assert.equal(tight.k, 5)
+  assert.ok(tight.overlapPct < 2)
+})
+
+test('різати сівалку наполовину заради перекриття програма не радить', () => {
+  for (const o of workingWidths({ ...boom16, boomWidth: 16, limit: 20 })) {
+    assert.ok(o.off * 3 <= 24, `${o.off} заглушених секцій із 24 — це вже інша сівалка`)
+  }
+})
+
+test('кожна запропонована робоча ширина справді дає колію', () => {
+  for (const o of workingWidths({ ...boom16, boomWidth: 16 })) {
+    const r = computeTramlines({
+      rows: o.rows, rowSpacing: 0.15, sprayerWidth: o.width,
+      trackWidth: 2.45, tyreWidth: 0.4, margin: 0.05,
+    })
+    assert.equal(r.ok, true, `${o.width} м не дає ритму`)
+    assert.equal(r.rhythm, o.k)
+    assert.ok(r.disabledPerCycle > 0, `${o.width} м: нема чого глушити`)
+  }
+})
+
+// ── Проходи по конкретному полю ───────────────────────────────────────────
+
+const field260 = {
+  rows: 24, rowSpacing: 0.15, sprayerWidth: 14.4,
+  trackWidth: 2.45, tyreWidth: 0.4, margin: 0.05, halfStart: true,
+}
+
+test('кожен прохід поля має свій номер і свій список секцій', () => {
+  const r = computeTramlines(field260)
+  const plan = fieldPlan(r, { fieldWidth: 260, fieldLength: 800, rowSpacing: 0.15, headland: 0 })
+
+  assert.deepEqual(plan.passes.map((p) => p.i), plan.passes.map((_, n) => n + 1))
+  for (const p of plan.passes) {
+    // Секція або сіє, або вимкнена під колію, або висить за межею поля —
+    // третього не дано, і жодна не може потрапити у два списки одразу.
+    const all = [...p.sowing, ...p.disabled, ...p.outside]
+    assert.equal(new Set(all).size, all.length, `прохід ${p.i}: секція в двох списках`)
+    assert.equal(all.length, 24, `прохід ${p.i}: загубилась секція`)
+  }
+})
+
+test('колію нарізає кожен k-й прохід, решта сіють усім', () => {
+  const r = computeTramlines(field260)
+  const plan = fieldPlan(r, { fieldWidth: 260, fieldLength: 800, rowSpacing: 0.15, headland: 0 })
+  const hit = plan.passes.filter((p) => p.tramline).map((p) => p.i)
+
+  assert.ok(hit.length > 0)
+  // Половинний перший прохід збирає колію в один прохід циклу, тож номери
+  // йдуть рівним кроком у чотири проходи.
+  for (let n = 1; n < hit.length; n++) assert.equal(hit[n] - hit[n - 1], r.cycle)
+  assert.equal(plan.passes.filter((p) => !p.tramline).length, plan.passes.length - hit.length)
+})
+
+test('за межею поля секції опиняються лише скраю', () => {
+  const r = computeTramlines(field260)
+  const plan = fieldPlan(r, { fieldWidth: 260, fieldLength: 800, rowSpacing: 0.15, headland: 0 })
+  const partial = plan.passes.filter((p) => p.outside.length)
+
+  for (const p of partial) {
+    assert.ok(p.i === 1 || p.i === plan.passes.length,
+      `прохід ${p.i} усередині поля не може виходити за межу`)
+  }
+})

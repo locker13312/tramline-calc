@@ -19,6 +19,7 @@ export const SPRAYER_PRESETS = [
   { key: 'row-crop', label: 'Просапний (вузька шина)', trackWidth: 2.25, tyreWidth: 0.32 },
   { key: 'universal', label: 'Універсальний',          trackWidth: 2.00, tyreWidth: 0.42 },
   { key: 'wide',      label: 'Широка шина / флотація', trackWidth: 2.25, tyreWidth: 0.65 },
+  { key: 'cereal',    label: 'Зернова ходова 2,45 м',  trackWidth: 2.45, tyreWidth: 0.40 },
 ]
 
 export const DEFAULTS = {

@@ -27,12 +27,26 @@ export function ratioOf({ rows, rowSpacing, sprayerWidth }) {
 
 // Ширини, за яких колія взагалі можлива: захват обприскувача має бути цілим
 // числом проходів сівалки. Коли ділиться не націло — показуємо, що поміняти.
+//
+// sprayerWidth тут — те, що фізично є на дворі: розмах штанги. Купувати іншу
+// штангу заради колії ніхто не буде, тому головна відповідь — не «зміни
+// обприскувач», а «їдь цією ж штангою вужче»: перекривай сусідній прохід і
+// вимикай крайні секції. Саме так 16-метрова штанга працює на 14,4 м.
 export function suggestions({ rows, rowSpacing, sprayerWidth }) {
   const W = drillWidth(rows, rowSpacing)
   const sprayerWidths = []
   for (let k = 1; k <= 12; k++) {
     const w = mm(k * W)
-    if (Math.abs(w - sprayerWidth) > 0.01) sprayerWidths.push({ k, width: w })
+    if (Math.abs(w - sprayerWidth) > 0.01) {
+      sprayerWidths.push({
+        k,
+        width: w,
+        // Ширину більшу за штангу взяти нізвідки — між проходами лишиться
+        // необроблена смуга. Менша означає лише перекриття.
+        fits: w <= sprayerWidth + 0.01,
+        overlap: mm(sprayerWidth - w),
+      })
+    }
   }
   // Та сама задача з іншого боку: залишаємо обприскувач, підбираємо сівалку.
   const drills = []
@@ -43,7 +57,60 @@ export function suggestions({ rows, rowSpacing, sprayerWidth }) {
       drills.push({ k, rows: r, width: mm(r * rowSpacing) })
     }
   }
-  return { sprayerWidths: sprayerWidths.slice(0, 8), drills: drills.slice(0, 8) }
+  return {
+    sprayerWidths: sprayerWidths.slice(0, 8),
+    drills: drills.slice(0, 8),
+    working: workingWidths({ rows, rowSpacing, boomWidth: sprayerWidth }),
+  }
+}
+
+// Робочі ширини під наявну штангу: скільки секцій сівалки реально сіє (r) і
+// скільки таких проходів вкладається в один прохід обприскувача (k). Перекриття
+// — те, що штанга накриває двічі; його або вимикають крайніми секціями, або
+// миряться з подвійною дозою на цій смузі.
+//
+// Звужувати сівалку означає заглушити кілька секцій з одного боку назавжди:
+// рама так само перекриває сусідній прохід, але жоден рядок не сіється двічі.
+export function workingWidths({ rows, rowSpacing, boomWidth, limit = 4 }) {
+  if (!(boomWidth > 0) || !(rowSpacing > 0) || !(rows >= 2)) return []
+
+  const seen = new Map()
+  for (let r = rows; r >= 2; r--) {
+    for (let k = 1; k <= 12; k++) {
+      const w = mm(r * rowSpacing * k)
+      if (w > boomWidth + 1e-9) break          // далі по k тільки ширше
+      const overlap = mm(boomWidth - w)
+      // Перекриття більше за чверть штанги — це вже не робота, а катання.
+      if (overlap > boomWidth / 4) continue
+      const prev = seen.get(w)
+      // Один і той самий захват дає кілька пар (r, k); лишаємо ту, де сівалка
+      // ширша — менше проходів на поле.
+      if (!prev || r > prev.rows) {
+        const overlapPct = mm((overlap / boomWidth) * 100)
+        const offPct = mm(((rows - r) / rows) * 100)
+        seen.set(w, {
+          rows: r,
+          off: rows - r,
+          k,
+          width: w,
+          overlap,
+          overlapPct,
+          offPct,
+          // Дві втрати різної природи, зведені до спільної міри: скільки
+          // відсотків роботи пропадає. Перекриття — в обприскувача, заглушені
+          // секції — в сівалки. Без цього список очолюють варіанти на кшталт
+          // «заглуши 11 секцій із 24, зате перекриття на 15 см менше»:
+          // формально найточніші, а на полі — подвоєна сівба.
+          cost: mm(overlapPct + offPct),
+        })
+      }
+    }
+  }
+
+  return [...seen.values()]
+    .filter((o) => o.off * 3 <= rows)   // різати сівалку більш ніж на третину не варіант
+    .sort((a, b) => a.cost - b.cost || b.rows - a.rows)
+    .slice(0, limit)
 }
 
 /**
@@ -268,13 +335,30 @@ export function fieldPlan(result, { fieldWidth, fieldLength, rowSpacing, headlan
       areaHa: mm((fieldWidth * fieldLength) / 10000) }
   }
 
-  // Проходи сівалки по робочій ширині
+  // Проходи сівалки по робочій ширині.
+  //
+  // Крім вимкнених секцій кожен прохід має ще одну категорію — секції, що
+  // висять за межею робочої частини: на половинному першому проході й на
+  // останньому, неповному. Механізаторові це та сама дія (підняти секцію),
+  // але причина інша, і плутати їх не можна: вимкнена секція нарізає колію,
+  // а винесена за межу просто не має де сіяти.
+  const rows = Math.round(W / rowSpacing)
   const passes = []
   for (let i = 0; ; i++) {
     const from = x0 + i * W - shift
     if (from >= x1 - EPS) break
     const to = Math.min(from + W, x1)
     const inCycle = ((i % k) + k) % k
+    const disabled = result.passes[inCycle].disabled
+
+    const outside = []
+    const sowing = []
+    for (let m = 1; m <= rows; m++) {
+      const x = from + (m - 0.5) * rowSpacing
+      if (x < x0 - EPS || x > x1 + EPS) outside.push(m)
+      else if (!disabled.includes(m)) sowing.push(m)
+    }
+
     passes.push({
       i: i + 1,
       cycleN: inCycle + 1,
@@ -282,7 +366,11 @@ export function fieldPlan(result, { fieldWidth, fieldLength, rowSpacing, headlan
       to: mm(to),
       width: mm(to - Math.max(from, x0)),
       full: from >= x0 - EPS && to >= from + W - EPS,
-      disabled: result.passes[inCycle].disabled,
+      disabled,
+      // Вимикати на цьому проході доводиться і те, і те — разом і по порядку.
+      outside,
+      sowing,
+      tramline: disabled.length > 0,
     })
   }
 
