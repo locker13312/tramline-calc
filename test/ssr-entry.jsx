@@ -7,6 +7,7 @@
 // захвати, довільна розкладка сошників.
 
 import { renderToString } from 'react-dom/server'
+import App from '../src/App'
 import Calculator from '../src/components/Calculator'
 import { DEFAULTS } from '../src/lib/presets'
 import { newMachine, defaultMachines } from '../src/lib/machines'
@@ -72,6 +73,24 @@ const scenarios = {
     yieldPerHa: 0, pricePerTon: 0, passes: 0, machines: [],
   },
 
+  'машина без захвату': {
+    ...DEFAULTS,
+    machines: [
+      newMachine('sprayer', { width: 18, axles: [{ trackWidth: 1.8, tyreWidth: 0.35 }] }),
+      newMachine('combine', { width: 0 }),
+    ],
+  },
+
+  'машина без колісної бази': {
+    ...DEFAULTS,
+    machines: [
+      newMachine('sprayer', { width: 18, axles: [{ trackWidth: 1.8, tyreWidth: 0.35 }] }),
+      newMachine('cart', { width: 9, axles: [{ trackWidth: 0, tyreWidth: 0 }] }),
+    ],
+  },
+
+  'недописана розкладка сошників': { ...DEFAULTS, coulters: [1.5] },
+
   'стара збережена форма без списку машин': {
     crop: 'wheat', rows: 24, rowSpacing: 0.15, sprayerWidth: 18,
     trackWidth: 1.8, tyreWidth: 0.35, margin: 0.1, halfStart: false,
@@ -109,5 +128,20 @@ for (const [name, input] of Object.entries(scenarios)) {
     console.log(`CRASH ${name}: ${e.message}`)
   }
 }
+// Оболонка цілком: шапка, перемикач теми, вкладки, підвал. Калькулятор
+// перевірено вище сам по собі, але вкладення розмітки в App ламається
+// окремо — і ламалося.
+for (const tab of ['calc', 'rhythms']) {
+  try {
+    const html = renderToString(<App startTab={tab} />)
+    if (!html.includes('Колія')) throw new Error('немає назви в шапці')
+    if (/NaN|undefined/.test(html)) throw new Error('NaN або undefined у розмітці')
+    console.log(`ok    оболонка, вкладка «${tab}»  (${html.length} символів)`)
+  } catch (e) {
+    failed++
+    console.log(`CRASH оболонка, вкладка «${tab}»: ${e.message}`)
+  }
+}
+
 console.log(failed ? `\n${failed} сценаріїв зламані` : '\nусі сценарії малюються')
 process.exit(failed ? 1 : 0)

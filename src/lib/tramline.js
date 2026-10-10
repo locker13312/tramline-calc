@@ -186,6 +186,18 @@ export function computeTramlines(input) {
   const all = normaliseMachines(input)
   const active = all.filter((m) => m.active)
 
+  // Машина ввімкнена, але без захвату або без жодної справної осі. Таку в
+  // розрахунок не візьмеш, проте й промовчати не можна: людина стерла одне
+  // поле, цифри поїхали, а причини не видно.
+  for (const m of all) {
+    if (!m.wanted || m.active) continue
+    warnings.push(
+      !(m.width > 0)
+        ? `«${m.label}»: не заданий захват, тому машина в розрахунок не взята.`
+        : `«${m.label}»: не задана колісна база або шина, тому машина в розрахунок не взята.`,
+    )
+  }
+
   // Відношення захвату кожної машини до захвату сівалки. Машина без робочого
   // відношення в колію не вкладається — але це не причина не відповісти про
   // решту: колію нарізають під головну машину, а про ту, що не вклалася,
@@ -223,6 +235,9 @@ export function computeTramlines(input) {
             `не зводяться до робочого ритму — виходить ${mm(ratio)} проходу. ` +
             `Колеса щоразу падатимуть у нове місце.`
           : 'Не задано жодної машини, яка поїде колією — нема під що її нарізати.',
+        // Попередження про незаповнені машини лишаються: саме вони часто й
+        // є причиною того, що колія не складається.
+        ...warnings,
       ],
       suggestions: suggestions({ rows, rowSpacing, sprayerWidth: leadWidth }),
     }
@@ -631,7 +646,9 @@ export function computeTramlines(input) {
       ratio: W > 0 ? mm(m.width / W) : 0,
       rhythm: f ? f.p : null,
       tyreWidth: m.axles.length ? mm(Math.max(...m.axles.map((a) => a.tyreWidth))) : 0,
-      reason: out?.reason ?? (m.active ? null : 'off'),
+      // 'off' — вимкнена свідомо, 'blank' — хотіли, але нема що рахувати.
+      // Для картки це різні підписи, і плутати їх не можна.
+      reason: out?.reason ?? (m.active ? null : (m.wanted ? 'blank' : 'off')),
       wouldBeRhythm: out?.wouldBe ?? null,
       passesPerCycle: isFitting && f ? Math.round((k * f.q) / f.p) : null,
     }
@@ -710,7 +727,12 @@ export function computeTramlines(input) {
     drillWidth: mm(W),
     coulters: offsets,
     rows,
+    custom: geo.custom,
     minGap: minGap(offsets),
+    // Ширина смуги, яку лишає один вимкнений сошник. У рівномірної сівалки
+    // це міжряддя; у довільної розкладки міжряддя з форми вже ні про що не
+    // каже, тож беремо найменший проміжок самої розкладки.
+    stripWidth: mm(geo.custom ? minGap(offsets) : (rowSpacing || minGap(offsets))),
     sprayerWidth: S,
     baseWidth: S,
     baseLabel: base.label,
@@ -843,7 +865,8 @@ export function fieldPlan(result, { fieldWidth, fieldLength, rowSpacing, headlan
   const workingHa = mm((workWidth * workLength) / 10000)
   // Ширина недосіяної смуги — міжряддя: зерно не впало, сусіди його частково
   // переростають, але площа лишається недосіяною.
-  const lostHa = mm((disabledRows * (rowSpacing || result.minGap) * workLength) / 10000)
+  const strip = result.stripWidth || rowSpacing || result.minGap
+  const lostHa = mm((disabledRows * strip * workLength) / 10000)
 
   // Скільки окремих коридорів лягло на поле. Два колеса однієї машини — одна
   // колія; дві машини, що їдуть тією самою смугою, — теж одна.
@@ -1014,7 +1037,7 @@ export function suggestTracks(input) {
 // не треба — і не можна. Розкидач став рядком у списку машин, і про нього
 // відповідає та сама геометрія, що й про решту: не лише чи кратний захват, а
 // й чи потрапляє його колесо в нарізану смугу. Стара функція відповідала на
-// першу половину питання й молчала про другу, тобто казала «іде кожною 2-ю
+// першу половину питання й мовчала про другу, тобто казала «іде кожною 2-ю
 // колією» навіть тоді, коли колесо йшло поряд зі смугою, по посіву.
 
 // Ритм для пари захватів — без колії, шини й решти: саме те, що показує

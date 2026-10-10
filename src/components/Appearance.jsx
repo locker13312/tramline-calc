@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 
 // ── Тема й колір ──────────────────────────────────────────────────────────
 //
@@ -44,6 +44,22 @@ const read = () => {
 export default function Appearance() {
   const [look, setLook] = useState(read)
   const [open, setOpen] = useState(false)
+  const box = useRef(null)
+
+  // Меню закривається клацанням поза ним і клавішею Escape. Без цього воно
+  // висить над сторінкою, поки не натиснеш кнопку вдруге, і на телефоні
+  // перекриває саму відповідь.
+  useEffect(() => {
+    if (!open) return
+    const away = (e) => { if (!box.current?.contains(e.target)) setOpen(false) }
+    const esc = (e) => { if (e.key === 'Escape') setOpen(false) }
+    document.addEventListener('pointerdown', away)
+    document.addEventListener('keydown', esc)
+    return () => {
+      document.removeEventListener('pointerdown', away)
+      document.removeEventListener('keydown', esc)
+    }
+  }, [open])
 
   // Тему тримає <html>, а не React: так її бачить і CSS, і смуга браузера.
   useEffect(() => {
@@ -62,8 +78,10 @@ export default function Appearance() {
     }
   }, [look])
 
+  const current = ACCENTS.find((a) => a.key === look.accent)
+
   return (
-    <div className="look">
+    <div className="look" ref={box}>
       <button
         type="button"
         className="look-open"
@@ -95,18 +113,29 @@ export default function Appearance() {
 
           <div className="look-row">
             <span className="look-k">колір</span>
-            <div className="look-dots">
-              {ACCENTS.map((a) => (
-                <button
-                  key={a.key} type="button" title={a.title}
-                  data-accent={a.key}
-                  className={`look-swatch${look.accent === a.key ? ' is-on' : ''}`}
-                  aria-pressed={look.accent === a.key}
-                  aria-label={a.title}
-                  onClick={() => setLook((s) => ({ ...s, accent: a.key }))}
-                />
-              ))}
-            </div>
+            {/* Назва поточного кольору словом: самого кружечка мало, коли
+                кольори близькі або людина їх розрізняє не так, як ми. */}
+            <span className="look-now">{current?.title}</span>
+          </div>
+
+          <div className="look-dots">
+            {ACCENTS.map((a) => (
+              <button
+                key={a.key} type="button" title={a.title}
+                data-accent={a.key}
+                className={`look-swatch${look.accent === a.key ? ' is-on' : ''}`}
+                aria-pressed={look.accent === a.key}
+                aria-label={a.title}
+                onClick={() => setLook((s) => ({ ...s, accent: a.key }))}
+              >
+                {look.accent === a.key && (
+                  <svg viewBox="0 0 16 16" aria-hidden="true">
+                    <path d="M3.5 8.5l3 3 6-6" fill="none" stroke="currentColor"
+                      strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" />
+                  </svg>
+                )}
+              </button>
+            ))}
           </div>
 
           <p className="look-note">

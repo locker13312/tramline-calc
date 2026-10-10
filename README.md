@@ -89,7 +89,7 @@ npm start               # http://localhost:3002 — API і сторінка ра
 ```bash
 npm run dev             # Vite на 5180, коли працюєш над фронтендом
 npm run server          # API окремо
-npm test                # 82 тести на розрахунок, вбудований ранер Node
+npm test                # 92 тести на розрахунок, вбудований ранер Node
 npm run test:render     # чи малюється кожен екран без збоїв і NaN
 npm run test:contrast   # контраст тексту в усіх темах і кольорах, по WCAG
 npm run test:css        # чи кожен клас у розмітці має стиль
@@ -227,6 +227,7 @@ src/
 test/
 ├── tramline.test.js    геометрія, поле, обсів, ритми, робочі ширини
 ├── machines.test.js    кілька машин, крок колій, відступи, розкладка
+├── regress.test.js     баги, що вже були: по тесту на кожен
 ├── invariants.test.js  1200 випадкових парків: інваріанти моделі
 ├── ssr-entry.jsx       чи малюється кожен екран без збоїв і NaN
 ├── contrast.mjs        контраст тексту в усіх темах і кольорах

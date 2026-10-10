@@ -112,7 +112,12 @@ export function normaliseMachines(input) {
       // null, і гроші візьмуть спільне число з форми: вгадувати за машину,
       // скільки разів вона виїде, програма не має права.
       passes: m.passes == null || m.passes === '' ? null : Number(m.passes),
-      active: m.active !== false && m.width > 0 && axles.length > 0,
+      // wanted — людина хоче цю машину в колії; active — вона справді
+      // годиться для розрахунку. Розрізняти їх обов'язково: стерте поле
+      // захвату робить машину непридатною, і якщо про це не сказати, цифри
+      // просто змінюються без причини.
+      wanted: m.active !== false,
+      active: m.active !== false && Number(m.width) > 0 && axles.length > 0,
       base: !!m.base,
       phase: m.phase == null || m.phase === '' ? null : Number(m.phase),
     }

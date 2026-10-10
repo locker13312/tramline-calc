@@ -49,23 +49,23 @@
 
 /* Варіанти акценту. Жоден не підходить до кольору сліду колеса впритул —
    інакше на схемі не відрізнити засіяний рядок від заглушеного. */
-:root[data-accent="green"] {
+[data-accent="green"] {
   --accent-l: #427029;  --accent-l-soft: #e6eedd;
   --accent-d: #92c968;  --accent-d-soft: #1e2a16;
 }
-:root[data-accent="blue"] {
+[data-accent="blue"] {
   --accent-l: #2a6ba6;  --accent-l-soft: #e1ecf7;
   --accent-d: #74b0e0;  --accent-d-soft: #152435;
 }
-:root[data-accent="teal"] {
+[data-accent="teal"] {
   --accent-l: #1d7568;  --accent-l-soft: #dcefeb;
   --accent-d: #5cc6b2;  --accent-d-soft: #112725;
 }
-:root[data-accent="violet"] {
+[data-accent="violet"] {
   --accent-l: #63479b;  --accent-l-soft: #eae4f6;
   --accent-d: #b095e2;  --accent-d-soft: #1f1a31;
 }
-:root[data-accent="slate"] {
+[data-accent="slate"] {
   --accent-l: #4a5560;  --accent-l-soft: #e6e9ec;
   --accent-d: #a9b7c3;  --accent-d-soft: #1b2027;
 }
@@ -132,6 +132,23 @@ body {
   color: var(--ink);
   font: 15px/1.55 var(--sans);
   font-feature-settings: 'tnum' 1;
+}
+
+/* Виділення тексту. Системне синє не знає ні про тему, ні про акцент: на
+   темному тлі воно залишає темний текст на темно-синьому, і виділений номер
+   секції стає нечитабельним саме тоді, коли його копіюють, щоб передати
+   механізаторові. Тому підклад свій, а колір тексту примусово основний. */
+::selection { background: var(--crop-soft); color: var(--ink); }
+
+/* Обведення по клавіатурі. Було видно лише на полях форми, бо в них свій
+   :focus; решта — кнопки, вкладки, посилання — ловила фокус невидимо. */
+:focus-visible {
+  outline: 2px solid var(--crop);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+.form input:focus-visible, .form select:focus-visible, .form textarea:focus-visible {
+  outline: none;
 }
 
 .app { max-width: 1280px; margin: 0 auto; padding: 0 22px 72px; }
@@ -706,6 +723,9 @@ body {
 }
 .intro {
   position: fixed; inset: 0; z-index: 50;
+  /* Заставка декоративна: поки вона гасне, натискання мусять проходити
+     крізь неї, а не впиратися в порожнє тло. */
+  pointer-events: none;
   display: flex; flex-direction: column; align-items: center; justify-content: center;
   gap: 18px; background: var(--bg);
   animation: fade-out 0.3s ease 0.95s forwards;
@@ -727,10 +747,13 @@ body {
   animation: lift 0.4s ease 0.54s backwards;
 }
 /* Анімація — приємність, а не умова роботи. Кому вона шкодить, той її не
-   побачить, і сторінка просто з'явиться. */
+   побачить: заставка гасне одразу, а решта просто з'являється на місці.
+   Перехід теми лишаємо — він не рух, а зміна кольору. */
 @media (prefers-reduced-motion: reduce) {
   .intro { animation-delay: 0s; animation-duration: 0.01s; }
-  .intro-row, .intro-name, .intro-sub { animation: none; }
+  .intro-row, .intro-name, .intro-sub,
+  .headline > .verdict, .look-pop, .sticky-answer { animation: none; }
+  .mswitch span, .mswitch span::after, .mcard { transition: none; }
 }
 
 /* Відповідь і панелі проступають, а не блимають. */
@@ -775,27 +798,46 @@ body {
 }
 .look-seg-b.is-on { background: var(--panel); color: var(--ink); font-weight: 650; }
 
-.look-dots { display: flex; gap: 7px; }
-/* Кружечок показує сам себе: кожен малює свій акцент, а не поточний. */
+.look-now { font-size: 12.5px; color: var(--ink); font-weight: 600; }
+
+.look-dots { display: flex; gap: 8px; margin: 2px 0 11px; }
+/* Кружечок малює свій колір, а не поточний: змінні акценту задані на
+   [data-accent], тож кнопка з цим атрибутом підставляє власні значення.
+   Раніше правило було привʼязане до :root — і всі п'ять кружечків виходили
+   однакові, кольору вибраного. Вибрати колір, не бачачи його, неможливо. */
 .look-swatch {
-  width: 22px; height: 22px; border-radius: 50%; cursor: pointer; padding: 0;
+  display: flex; align-items: center; justify-content: center;
+  width: 30px; height: 30px; border-radius: 50%; cursor: pointer; padding: 0;
   border: 2px solid transparent; background: var(--accent-l);
-  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.12);
+  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.14);
+  color: #fff;
 }
+.look-swatch svg { width: 16px; height: 16px; }
+/* Вибраний позначений не лише обідком, а й галочкою: обідок кольору тексту
+   на темному кружечку видно погано, та й колір сам по собі не позначка. */
 .look-swatch.is-on { border-color: var(--ink); }
-:root[data-theme="dark"] .look-swatch { background: var(--accent-d); }
+.look-swatch:hover { box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.14), 0 0 0 3px var(--sunken); }
+
+:root[data-theme="dark"] .look-swatch { background: var(--accent-d); color: #10120e; }
 @media (prefers-color-scheme: dark) {
-  :root:not([data-theme="light"]) .look-swatch { background: var(--accent-d); }
+  :root:not([data-theme="light"]) .look-swatch { background: var(--accent-d); color: #10120e; }
 }
 .look-note { margin: 0; font-size: 11px; line-height: 1.45; color: var(--ink-3); }
 
 /* На вузькому екрані в шапці тісно: лишається самий кружечок, і він так само
    зрозумілий — його колір і є поточним акцентом. */
 .look-open-t { display: inline; }
+
+@media (max-width: 900px) {
+  /* У шапці телефона кнопка стоїть ліворуч, а не праворуч, тож меню з
+     прив'язкою до правого краю виїжджало за екран. */
+  .look-pop { left: 0; right: auto; }
+}
+
 @media (max-width: 460px) {
   .look-open-t { display: none; }
   .look-open { padding: 9px 10px; }
-  .look-pop { width: 240px; }
+  .look-pop { width: min(240px, calc(100vw - 28px)); }
 }
 
 /* ── Розділи налаштувань ───────────────────────────────────────────────── */

@@ -56,12 +56,14 @@ const TABS = [
   { key: 'rhythms', label: 'Довідник' },
 ]
 
-export default function App() {
+// startTab — з якої вкладки відкритися. Потрібне перевірці рендером: вона
+// малює оболонку з кожною вкладкою, щоб жодна не ламалася непоміченою.
+export default function App({ startTab = 'calc' }) {
   const [input, setInput] = useState(() => {
     try { return { ...DEFAULTS, ...JSON.parse(localStorage.getItem(STORE) || '{}') } }
     catch { return DEFAULTS }
   })
-  const [tab, setTab] = useState('calc')
+  const [tab, setTab] = useState(startTab)
   const [user, setUser] = useState(null)
   // Анімацію показуємо лише коли сторінку справді відкрили, а не на кожному
   // перемалюванні; знімаємо її з DOM, щоб вона не перехоплювала натискання.

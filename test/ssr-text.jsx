@@ -7,12 +7,14 @@ import Calculator from '../src/components/Calculator'
 import { DEFAULTS } from '../src/lib/presets'
 import { newMachine } from '../src/lib/machines'
 
+// Набір навмисно з вадою: у перевантажувача стертий захват. Так видно і
+// звичайний присуд, і те, як програма говорить про незаповнену машину.
 const input = {
   ...DEFAULTS,
   machines: [
     newMachine('sprayer', { width: 18, axles: [{ trackWidth: 3.0, tyreWidth: 0.35 }] }),
     newMachine('combine', { width: 9, axles: [{ trackWidth: 3.0, tyreWidth: 0.8 }] }),
-    newMachine('cart', { width: 9, axles: [{ trackWidth: 3.0, tyreWidth: 0.65 }] }),
+    newMachine('cart', { width: 0, axles: [{ trackWidth: 3.0, tyreWidth: 0.65 }] }),
   ],
 }
 

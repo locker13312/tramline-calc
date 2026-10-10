@@ -21,20 +21,23 @@ export function coulterOffsets({ rows, rowSpacing, coulters }) {
 
 // Захват сівалки.
 //
-// У рівномірної це просто секції × міжряддя. У довільної розкладки по самих
-// позиціях захвату не видно — невідомо, скільки рами виступає за крайні
-// сошники. Беремо симетричне припущення: скільки є до першого сошника,
-// стільки й після останнього. Його можна перебити явно (drillWidth у формі),
-// бо від захвату залежить уся сітка проходів.
+// У рівномірної це просто секції × міжряддя — і нічим іншим він бути не може.
+// У довільної розкладки по самих позиціях захвату не видно: невідомо, скільки
+// рами виступає за крайні сошники. Тоді беремо симетричне припущення —
+// скільки є до першого сошника, стільки й після останнього, — і його можна
+// перебити явно (drillWidth у формі).
+//
+// Явне значення діє тільки для довільної розкладки. Інакше воно лишалося
+// прилиплим: задав 2,4 м для своєї розкладки, повернувся до рівномірної — і
+// захват усе одно 2,4 м, хоч секції з міжряддям кажуть інше.
 export function drillGeometry(input) {
   const offsets = coulterOffsets(input)
+  const custom = Array.isArray(input.coulters) && input.coulters.length >= 2
   const explicit = Number(input.drillWidth)
-  const width = explicit > 0
-    ? mm(explicit)
-    : (Array.isArray(input.coulters) && input.coulters.length >= 2
-      ? mm(offsets.at(-1) + offsets[0])
-      : mm((Math.round(input.rows) || 0) * input.rowSpacing))
-  return { offsets, width, rows: offsets.length, custom: offsets.length > 0 && Array.isArray(input.coulters) && input.coulters.length >= 2 }
+  const width = custom
+    ? (explicit > 0 ? mm(explicit) : mm(offsets.at(-1) + offsets[0]))
+    : mm((Math.round(input.rows) || 0) * input.rowSpacing)
+  return { offsets, width, rows: offsets.length, custom: custom && offsets.length > 0 }
 }
 
 // Найменше міжряддя в розкладці — саме воно вирішує, чи може колесо взагалі

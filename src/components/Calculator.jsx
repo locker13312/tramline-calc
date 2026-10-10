@@ -65,9 +65,16 @@ export default function Calculator({ input, setInput, initialSection = 'drill' }
     [plan, result, input.yieldPerHa, input.pricePerTon, input.passes, input.damagePct, input.tyreWidth],
   )
 
+  // Культура задає міжряддя й секції, тож своя розкладка сошників після
+  // такого вибору вже ні до чого — її й захват скидаємо разом.
   const pickCrop = (key) => {
     const c = CROPS.find((x) => x.key === key)
-    if (c) setInput((s) => ({ ...s, crop: key, rowSpacing: c.rowSpacing, rows: c.rows, coulters: null }))
+    if (c) {
+      setInput((s) => ({
+        ...s, crop: key, rowSpacing: c.rowSpacing, rows: c.rows,
+        coulters: null, drillWidth: null,
+      }))
+    }
   }
 
   // Підставити машині інший захват із підказки.
@@ -121,8 +128,13 @@ export default function Calculator({ input, setInput, initialSection = 'drill' }
                 onClick={() => setSection(s.key)}
               >
                 {s.label}
+                {/* Лічильник показує машини, які справді в колії, а не
+                    просто ввімкнені: незаповнена в розрахунок не йде, і
+                    видавати її за робочу не можна. */}
                 {s.key === 'machines' && (
-                  <i className="fnav-n">{machines.filter((m) => m.active !== false).length}</i>
+                  <i className="fnav-n">
+                    {(result.machines ?? []).filter((m) => m.active).length}
+                  </i>
                 )}
               </button>
             ))}
@@ -242,7 +254,11 @@ export default function Calculator({ input, setInput, initialSection = 'drill' }
           {result.ok && (
             <>
               <PassPlan result={result} />
-              <PassList plan={plan} rowSpacing={input.rowSpacing} />
+              <PassList
+                plan={plan}
+                rowSpacing={result.stripWidth || input.rowSpacing}
+                custom={result.custom}
+              />
 
               {plan && !plan.tooSmall && (
                 <div className="panel">
@@ -279,18 +295,37 @@ export default function Calculator({ input, setInput, initialSection = 'drill' }
 // слід трактора, пари сошників. Тому під рівномірною формою є друга, де
 // позиції задаються списком, і решта розрахунку про цю різницю не знає.
 function Drill({ input, set, onNum, pickCrop, result, tractor, setTractor }) {
-  const custom = Array.isArray(input.coulters) && input.coulters.length >= 2
-  const [text, setText] = useState(() => (custom ? input.coulters.join(', ') : ''))
+  // Режим тримає форма, а не розрахунок. Якщо дивитися на input.coulters, то
+  // стерти текст у полі означало б випасти назад у рівномірну сівалку разом
+  // із усім набраним: половина розкладки — це ще не рівномірна сівалка, це
+  // недописана розкладка.
+  const [mode, setMode] = useState(
+    () => (Array.isArray(input.coulters) && input.coulters.length >= 2 ? 'custom' : 'even'),
+  )
+  const [text, setText] = useState(
+    () => (Array.isArray(input.coulters) ? input.coulters.join(', ') : ''),
+  )
+
+  const parse = (v) => v.split(/[\s,;]+/).map(Number).filter((x) => Number.isFinite(x) && x >= 0)
+  const parsed = parse(text)
 
   const toCustom = () => {
     const even = coulterOffsets({ rows: input.rows, rowSpacing: input.rowSpacing })
     setText(even.join(', '))
     set('coulters', even)
+    setMode('custom')
+  }
+
+  const toEven = () => {
+    set('coulters', null)
+    set('drillWidth', null)
+    setText('')
+    setMode('even')
   }
 
   const onText = (v) => {
     setText(v)
-    const list = v.split(/[\s,;]+/).map(Number).filter((x) => Number.isFinite(x) && x >= 0)
+    const list = parse(v)
     set('coulters', list.length >= 2 ? list : null)
   }
 
@@ -300,12 +335,14 @@ function Drill({ input, set, onNum, pickCrop, result, tractor, setTractor }) {
 
       <label>
         Культура
-        <select value={input.crop} onChange={(e) => pickCrop(e.target.value)}>
+        {/* Вибір культури скидає й свою розкладку — інакше у полі лишався б
+            набраний текст, якого розрахунок уже не бере. */}
+        <select value={input.crop} onChange={(e) => { pickCrop(e.target.value); toEven() }}>
           {CROPS.map((c) => <option key={c.key} value={c.key}>{c.label}</option>)}
         </select>
       </label>
 
-      {!custom ? (
+      {mode === 'even' ? (
         <>
           <div className="duo">
             <label>
@@ -328,10 +365,17 @@ function Drill({ input, set, onNum, pickCrop, result, tractor, setTractor }) {
             Позиції сошників від краю рами, м
             <textarea rows="3" value={text} onChange={(e) => onText(e.target.value)} />
           </label>
-          <p className="note">
-            Через кому. Рама вважається симетричною: скільки до першого сошника,
-            стільки й після останнього. Якщо це не так — задайте захват нижче.
-          </p>
+          {parsed.length >= 2 ? (
+            <p className="note">
+              Через кому. Рама вважається симетричною: скільки до першого сошника,
+              стільки й після останнього. Якщо це не так — задайте захват нижче.
+            </p>
+          ) : (
+            <p className="note" style={{ color: 'var(--warn)' }}>
+              Потрібно щонайменше дві позиції. Поки їх менше, розрахунок бере
+              рівномірну сівалку — {input.rows} × {num(input.rowSpacing)} м.
+            </p>
+          )}
           <div className="duo">
             <label>
               Захват, м
@@ -349,8 +393,7 @@ function Drill({ input, set, onNum, pickCrop, result, tractor, setTractor }) {
             {result.rows} {plural(result.rows, 'сошник', 'сошники', 'сошників')} ·{' '}
             захват {num(result.drillWidth)} м · найменше міжряддя {num(result.minGap)} м
           </div>
-          <button type="button" className="mlink mlink-block"
-            onClick={() => { set('coulters', null); set('drillWidth', null); setText('') }}>
+          <button type="button" className="mlink mlink-block" onClick={toEven}>
             повернутись до рівномірної
           </button>
         </>

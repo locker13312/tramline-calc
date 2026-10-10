@@ -95,7 +95,10 @@ export default function MachineList({ machines, setMachines, result }) {
                   {r?.fits && r.extraRows > 0 && !r.base && (
                     <span className="mbadge is-cost">+{r.extraRows}</span>
                   )}
-                  {r && m.active && !r.fits && <span className="mbadge is-bad">не вкладається</span>}
+                  {r?.reason === 'blank' && <span className="mbadge is-bad">не заповнено</span>}
+                  {r && m.active && !r.fits && r.reason !== 'blank' && (
+                    <span className="mbadge is-bad">не вкладається</span>
+                  )}
                   <span className="mcard-chev" aria-hidden="true">{isOpen ? '▴' : '▾'}</span>
                 </div>
               </div>

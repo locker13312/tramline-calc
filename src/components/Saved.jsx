@@ -63,13 +63,14 @@ const KINDS = {
       }
       const park = typeof row.park === 'string' ? safeParse(row.park) : row.park
       if (!park) return base
-      return {
-        ...base,
-        machines: park.machines ?? undefined,
-        coulters: park.coulters ?? null,
-        drillWidth: park.drillWidth ?? null,
-        drillTractor: park.drillTractor ?? base.drillTractor,
-      }
+      // Чого в комплекті немає, те й не чіпаємо: записаний патч накладається
+      // на поточні дані, і undefined затер би добре значення порожнечею.
+      const extra = {}
+      if (park.machines) extra.machines = park.machines
+      if (park.coulters) extra.coulters = park.coulters
+      if (park.drillWidth) extra.drillWidth = park.drillWidth
+      if (park.drillTractor) extra.drillTractor = park.drillTractor
+      return { ...base, ...extra }
     },
     describe: (row) => {
       const park = typeof row.park === 'string' ? safeParse(row.park) : row.park

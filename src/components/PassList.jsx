@@ -11,7 +11,7 @@ import { rangeText, num, plural } from '../lib/format'
 // Стрічка номерів угорі — щоб охопити поле одним поглядом; таблиця під нею —
 // щоб прочитати конкретний рядок. Друкується таблиця: аркуш у кабіні працює
 // там, де телефон уже сів.
-export default function PassList({ plan, rowSpacing }) {
+export default function PassList({ plan, rowSpacing, custom }) {
   const [onlyTramlines, setOnlyTramlines] = useState(false)
   if (!plan || plan.tooSmall || !plan.passes?.length) return null
 
@@ -98,9 +98,12 @@ export default function PassList({ plan, rowSpacing }) {
       </div>
 
       <p className="note" style={{ margin: '12px 0 0' }}>
-        Сошники рахуються зліва направо за напрямком руху. Міжряддя{' '}
-        {num(rowSpacing * 100, 0)} см, тож кожен вимкнений сошник — смуга{' '}
-        {num(rowSpacing * 100, 0)} см без сходів.
+        Сошники рахуються зліва направо за напрямком руху.{' '}
+        {custom
+          ? `Розкладка своя, найменший проміжок ${num(rowSpacing * 100, 0)} см — ` +
+            'приблизно таку смугу й лишає кожен вимкнений сошник.'
+          : `Міжряддя ${num(rowSpacing * 100, 0)} см, тож кожен вимкнений сошник — ` +
+            `смуга ${num(rowSpacing * 100, 0)} см без сходів.`}
       </p>
     </div>
   )
