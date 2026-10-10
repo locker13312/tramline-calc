@@ -1,53 +1,125 @@
 /* ── Колія ─────────────────────────────────────────────────
    Кольори взяті з поля: ґрунт, сходи, іржа на слідах коліс.
-   Світла тема — робота за столом, темна — кабіна й вечір. */
+   Світла тема — робота за столом, темна — кабіна й вечір.
+
+   Тему й колір акценту вибирає людина: data-theme="light|dark" і
+   data-accent на <html>. Без них працює системна тема — так воно й було.
+
+   Темна основа навмисно майже нейтральна, а не темно-зелена, як раніше.
+   На зеленому тлі зелений акцент і дрібний підпис зливалися: текст ніби є,
+   а прочитати його в кабіні не виходить. Тепер тло тримає нейтраль, а колір
+   лишається там, де він щось означає. */
 
 :root {
+  /* Акцент. Кожен варіант задає пару: як він виглядає на папері й як на
+     темному. Один і той самий зелений не може бути читабельним і там, і там,
+     тож тема лише вибирає, котрий із двох узяти. */
+  --accent-l: #427029;  --accent-l-soft: #e6eedd;
+  --accent-d: #92c968;  --accent-d-soft: #1e2a16;
+
   --bg: #f4f3ee;
   --panel: #fffefb;
   --sunken: #eceae2;
   --line: #ddd9cc;
-  --line-2: #c8c2ae;
+  --line-2: #bdb6a0;
 
   --ink: #1b1d16;
-  --ink-2: #565a4b;
-  --ink-3: #8b8f7d;
+  --ink-2: #4f5445;
+  /* Був #8b8f7d — три з половиною до одного проти паперу. Дрібні підписи
+     на такому контрасті читає лише той, хто знає, що там написано.
+     Міра тут не око, а test/contrast.mjs: 4,5:1 на найтіснішому з трьох
+     тл, на яких цей колір справді стоїть. */
+  --ink-3: #62675a;
 
-  --crop: #4a7c2f;        /* сходи */
-  --crop-soft: #e6eedd;
-  --track: #b04a2f;       /* слід колеса */
+  --crop: var(--accent-l);
+  --crop-soft: var(--accent-l-soft);
+  --track: #ab4529;       /* слід колеса */
   --track-soft: #f6e6e1;
-  --warn: #8a5d00;
+  --warn: #7d5300;
   --warn-soft: #faf0d8;
   --soil: #e4ddcb;
   --soil-2: #d6ccb2;
+
+  color-scheme: light;
 
   --radius: 12px;
   --sans: 'IBM Plex Sans', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
   --mono: 'IBM Plex Mono', ui-monospace, 'Cascadia Mono', Consolas, monospace;
 }
 
+/* Варіанти акценту. Жоден не підходить до кольору сліду колеса впритул —
+   інакше на схемі не відрізнити засіяний рядок від заглушеного. */
+:root[data-accent="green"] {
+  --accent-l: #427029;  --accent-l-soft: #e6eedd;
+  --accent-d: #92c968;  --accent-d-soft: #1e2a16;
+}
+:root[data-accent="blue"] {
+  --accent-l: #2a6ba6;  --accent-l-soft: #e1ecf7;
+  --accent-d: #74b0e0;  --accent-d-soft: #152435;
+}
+:root[data-accent="teal"] {
+  --accent-l: #1d7568;  --accent-l-soft: #dcefeb;
+  --accent-d: #5cc6b2;  --accent-d-soft: #112725;
+}
+:root[data-accent="violet"] {
+  --accent-l: #63479b;  --accent-l-soft: #eae4f6;
+  --accent-d: #b095e2;  --accent-d-soft: #1f1a31;
+}
+:root[data-accent="slate"] {
+  --accent-l: #4a5560;  --accent-l-soft: #e6e9ec;
+  --accent-d: #a9b7c3;  --accent-d-soft: #1b2027;
+}
+
+/* Темна тема. Один набір значень, два входи: системна тема, якщо людина не
+   вибирала, і прямий вибір, якщо вибрала. */
 @media (prefers-color-scheme: dark) {
-  :root {
-    --bg: #14170f;
-    --panel: #1c2016;
-    --sunken: #12150d;
-    --line: #2d3326;
-    --line-2: #414937;
+  :root:not([data-theme="light"]) {
+    --bg: #111310;
+    --panel: #1a1d18;
+    --sunken: #141711;
+    --line: #2a2e26;
+    --line-2: #4d5447;
 
-    --ink: #eceee4;
-    --ink-2: #a7ad98;
-    --ink-3: #757c68;
+    --ink: #f0f1ec;
+    /* Світліше за колишні #a7ad98 і #757c68: саме ці два кольори тримають
+       майже весь дрібний текст — підписи полів, примітки, лінійки на схемах. */
+    --ink-2: #bdc1b5;
+    --ink-3: #969b8c;
 
-    --crop: #8ec463;
-    --crop-soft: #232d19;
-    --track: #d4795f;
-    --track-soft: #2e1d17;
-    --warn: #e0b055;
+    --crop: var(--accent-d);
+    --crop-soft: var(--accent-d-soft);
+    --track: #e08a6f;
+    --track-soft: #30201a;
+    --warn: #e6bb66;
     --warn-soft: #2b2310;
-    --soil: #262214;
-    --soil-2: #332d1c;
+    --soil: #24261f;
+    --soil-2: #30332a;
+
+    color-scheme: dark;
   }
+}
+
+:root[data-theme="dark"] {
+  --bg: #111310;
+  --panel: #1a1d18;
+  --sunken: #141711;
+  --line: #2a2e26;
+  --line-2: #4d5447;
+
+  --ink: #f0f1ec;
+  --ink-2: #bdc1b5;
+  --ink-3: #969b8c;
+
+  --crop: var(--accent-d);
+  --crop-soft: var(--accent-d-soft);
+  --track: #e08a6f;
+  --track-soft: #30201a;
+  --warn: #e6bb66;
+  --warn-soft: #2b2310;
+  --soil: #24261f;
+  --soil-2: #30332a;
+
+  color-scheme: dark;
 }
 
 * { box-sizing: border-box; }
@@ -238,8 +310,17 @@ body {
   .figures { grid-template-columns: repeat(2, 1fr); }
   .money { grid-template-columns: 1fr; }
   .verdict-line { font-size: 20px; }
+  .verdict { padding: 16px 16px; }
+  .panel { padding: 15px 14px 16px; }
   /* 16px не дає iOS зумити сторінку при фокусі */
-  .form input, .form select { font-size: 16px; }
+  .form input, .form select, .form textarea { font-size: 16px; }
+  /* Палець, а не курсор: усе, що натискають, має бути не менше 44 px. */
+  .form input, .form select { min-height: 44px; }
+  .mcard-top { padding: 10px; min-height: 52px; }
+  .mlink { padding: 7px 0; display: inline-block; }
+  .btn-sm { padding: 10px 14px; }
+  .check { padding: 4px 0; }
+  .check input { width: 22px; height: 22px; }
 
   /* Стиснути 25 метрів поля в 330 px — підписи стають нечитабельні. */
   .diagram { overflow-x: auto; -webkit-overflow-scrolling: touch; }
@@ -422,21 +503,31 @@ body {
    у формі, у присуді, на карті поля й на схемі проходу. Якщо колесо комбайна
    стало в ту саму смугу, що й колесо обприскувача, це має бути видно одним
    поглядом, а не вичитуватись із чисел. */
+/* Кольори машин від акценту не залежать: їх має бути видно поруч один з
+   одним, а не підібрано під смак. Міняється лише світлість — на папері
+   потрібні темніші, на темному тлі світліші. */
 :root {
-  --m1: #b04a2f;   /* слід першої машини — той самий колір, що й колія */
-  --m2: #2f6ea8;
-  --m3: #8a5d9e;
-  --m4: #b08a1f;
-  --m5: #2f8a6e;
+  --m1: #ab4529;   /* слід першої машини — той самий колір, що й колія */
+  --m2: #2a6ba6;
+  --m3: #825697;
+  --m4: #9a7414;
+  --m5: #1d7a62;
 }
 @media (prefers-color-scheme: dark) {
-  :root {
-    --m1: #d4795f;
-    --m2: #6aa8d8;
-    --m3: #b58fc8;
-    --m4: #d9b451;
-    --m5: #5fc2a1;
+  :root:not([data-theme="light"]) {
+    --m1: #e08a6f;
+    --m2: #74b0e0;
+    --m3: #bb97cd;
+    --m4: #dfba5c;
+    --m5: #62c9a6;
   }
+}
+:root[data-theme="dark"] {
+  --m1: #e08a6f;
+  --m2: #74b0e0;
+  --m3: #bb97cd;
+  --m4: #dfba5c;
+  --m5: #62c9a6;
 }
 
 .mlist { display: flex; flex-direction: column; gap: 8px; margin-bottom: 12px; }
@@ -645,6 +736,134 @@ body {
 /* Відповідь і панелі проступають, а не блимають. */
 .headline > .verdict { animation: lift 0.32s ease backwards; }
 
+/* ── Тема й колір ──────────────────────────────────────────────────────── */
+.look { position: relative; }
+.look-open {
+  display: inline-flex; align-items: center; gap: 7px;
+  padding: 7px 11px; border-radius: 8px; cursor: pointer;
+  font: 500 13px var(--sans); color: var(--ink-2);
+  background: transparent; border: 1px solid var(--line-2);
+}
+.look-open:hover { color: var(--ink); border-color: var(--ink-3); }
+.look-dot {
+  width: 12px; height: 12px; border-radius: 50%;
+  background: var(--crop); flex-shrink: 0;
+}
+
+.look-pop {
+  position: absolute; top: calc(100% + 7px); right: 0; z-index: 40;
+  width: 252px; padding: 13px 14px;
+  background: var(--panel); border: 1px solid var(--line-2);
+  border-radius: 10px; box-shadow: 0 10px 28px rgba(0, 0, 0, 0.18);
+  animation: lift 0.16s ease;
+}
+.look-row {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 10px; margin-bottom: 10px;
+}
+.look-k {
+  font-family: var(--mono); font-size: 10.5px; letter-spacing: 0.08em;
+  text-transform: uppercase; color: var(--ink-3);
+}
+.look-seg {
+  display: flex; gap: 2px; padding: 2px;
+  background: var(--sunken); border-radius: 7px;
+}
+.look-seg-b {
+  padding: 5px 9px; border: 0; border-radius: 5px; cursor: pointer;
+  font: 500 12px var(--sans); color: var(--ink-2); background: transparent;
+}
+.look-seg-b.is-on { background: var(--panel); color: var(--ink); font-weight: 650; }
+
+.look-dots { display: flex; gap: 7px; }
+/* Кружечок показує сам себе: кожен малює свій акцент, а не поточний. */
+.look-swatch {
+  width: 22px; height: 22px; border-radius: 50%; cursor: pointer; padding: 0;
+  border: 2px solid transparent; background: var(--accent-l);
+  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.12);
+}
+.look-swatch.is-on { border-color: var(--ink); }
+:root[data-theme="dark"] .look-swatch { background: var(--accent-d); }
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .look-swatch { background: var(--accent-d); }
+}
+.look-note { margin: 0; font-size: 11px; line-height: 1.45; color: var(--ink-3); }
+
+/* На вузькому екрані в шапці тісно: лишається самий кружечок, і він так само
+   зрозумілий — його колір і є поточним акцентом. */
+.look-open-t { display: inline; }
+@media (max-width: 460px) {
+  .look-open-t { display: none; }
+  .look-open { padding: 9px 10px; }
+  .look-pop { width: 240px; }
+}
+
+/* ── Розділи налаштувань ───────────────────────────────────────────────── */
+/* Форма виросла до чотирьох панелей, і нижні опинялися під списком машин —
+   щоб побачити «поле» чи «гроші», доводилося гортати всю сторінку. Тепер це
+   перемикач, і форма завжди в один екран. */
+.fnav {
+  display: grid; grid-template-columns: repeat(4, 1fr); gap: 3px;
+  background: var(--sunken); border: 1px solid var(--line);
+  border-radius: 10px; padding: 3px;
+}
+.fnav-b {
+  display: flex; align-items: center; justify-content: center; gap: 5px;
+  padding: 9px 6px; border: 0; border-radius: 7px; cursor: pointer;
+  font: 500 13px var(--sans); color: var(--ink-2); background: transparent;
+  white-space: nowrap; min-height: 38px;
+}
+.fnav-b:hover { color: var(--ink); }
+.fnav-b.is-on {
+  background: var(--panel); color: var(--ink); font-weight: 650;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.09);
+}
+.fnav-n {
+  font-style: normal; font-family: var(--mono); font-size: 10px; font-weight: 700;
+  min-width: 16px; padding: 0 4px; border-radius: 999px;
+  background: var(--crop); color: #fff; line-height: 16px; text-align: center;
+}
+
+/* ── Відповідь, що лишається на видноті ────────────────────────────────── */
+/* Тільки на телефоні: на широкому екрані форма збоку, і вердикт видно й так. */
+.sticky-answer { display: none; }
+
+@media (max-width: 900px) {
+  .sticky-answer {
+    position: fixed; top: 0; left: 0; right: 0; z-index: 30;
+    display: flex; align-items: center; justify-content: space-between;
+    gap: 10px; width: 100%; text-align: left; cursor: pointer;
+    /* Смуга стоїть угорі, тож відступ потрібен під «чоло» екрана телефона,
+       а не під нижню панель. */
+    padding: calc(10px + env(safe-area-inset-top, 0px)) 14px 10px;
+    min-height: calc(44px + env(safe-area-inset-top, 0px));
+    border: 0; border-bottom: 1px solid var(--line);
+    background: var(--panel); color: var(--ink);
+    font: 500 14px var(--sans);
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.12);
+    animation: lift 0.2s ease;
+  }
+  .sa-main { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .sa-main b { color: var(--track); font-weight: 700; font-family: var(--mono); }
+  .sa-main.is-clean { color: var(--crop); font-weight: 600; }
+  .sa-main.is-bad { color: var(--track); font-weight: 600; }
+  .sa-side {
+    flex-shrink: 0; font-family: var(--mono); font-size: 11.5px; color: var(--ink-3);
+  }
+
+  /* Перемикач розділів лишається під рукою, поки гортаєш форму: інакше, щоб
+     перейти з «машин» на «поле», треба спершу прокрутити весь список машин
+     назад угору. */
+  .fnav {
+    position: sticky; top: 0; z-index: 20;
+    margin: 0 -2px; box-shadow: 0 6px 12px -8px rgba(0, 0, 0, 0.25);
+  }
+  /* Коли липкий рядок відповіді вже показано, він займає верх екрана —
+     перемикач стає під ним. Відступ той самий, що й висота рядка, разом із
+     «чолом» екрана: на телефоні з вирізом інакше з'їдало б підписи. */
+  .sticky-answer ~ .cols .fnav { top: calc(44px + env(safe-area-inset-top, 0px)); }
+}
+
 /* На вузькому екрані назва машини, її розміри й значки не вміщаються в один
    рядок: значки з'їжджають під назву, а не ріжуться краєм картки. */
 @media (max-width: 460px) {
@@ -662,7 +881,7 @@ body {
    висоту — інакше принтер віддасть перші пів екрана й обріже решту. */
 @media print {
   .tabs, .form, .foot, .top-auth, .passlist-bar, .figures, .money,
-  .plan-wrap, .diagram { display: none !important; }
+  .plan-wrap, .diagram, .sticky-answer, .intro { display: none !important; }
   .app { max-width: none; padding: 0; }
   .cols { display: block; }
   .panel { border: 0; padding: 0 0 14px; break-inside: auto; }

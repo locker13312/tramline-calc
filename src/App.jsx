@@ -6,6 +6,7 @@ import Calculator from './components/Calculator'
 import AuthPanel from './components/AuthPanel'
 import Saved from './components/Saved'
 import RhythmTable from './components/RhythmTable'
+import Appearance from './components/Appearance'
 
 const STORE = 'tramline_input'
 
@@ -117,18 +118,17 @@ export default function App() {
           <div className="brand">Колія</div>
           <div className="brand-sub">які сошники глушити, щоб потім було де їздити</div>
         </div>
-        {checked && (
-          <div className="top-auth">
-            {user ? (
-              <>
-                <span className="who" title={user.email}>{user.name || user.email}</span>
-                <button className="btn btn-sm btn-quiet" onClick={logout}>Вийти</button>
-              </>
-            ) : (
-              <button className="btn btn-sm" onClick={() => setTab('fields')}>Увійти</button>
-            )}
-          </div>
-        )}
+        <div className="top-auth">
+          <Appearance />
+          {checked && (user ? (
+            <>
+              <span className="who" title={user.email}>{user.name || user.email}</span>
+              <button className="btn btn-sm btn-quiet" onClick={logout}>Вийти</button>
+            </>
+          ) : (
+            <button className="btn btn-sm" onClick={() => setTab('fields')}>Увійти</button>
+          ))}
+        </div>
       </header>
 
       <nav className="tabs" role="tablist">

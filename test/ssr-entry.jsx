@@ -84,10 +84,19 @@ const scenarios = {
   'типові машини з defaultMachines': { ...DEFAULTS, machines: defaultMachines() },
 }
 
+// Форма тепер із розділів, і відкритий лише один. Щоб жоден не ламався
+// непоміченим, кожен сценарій малюється з того розділу, який до нього
+// пасує, а типовий старт — з усіх чотирьох.
+for (const s of ['machines', 'field', 'money']) {
+  scenarios[`типовий старт, розділ «${s}»`] = { ...DEFAULTS, __section: s }
+}
+
 let failed = 0
 for (const [name, input] of Object.entries(scenarios)) {
   try {
-    const html = renderToString(<Calculator input={input} setInput={noop} />)
+    const html = renderToString(
+      <Calculator input={input} setInput={noop} initialSection={input.__section ?? 'drill'} />,
+    )
     const bad = []
     if (/NaN/.test(html)) bad.push('NaN у розмітці')
     if (/undefined/.test(html)) bad.push('undefined у розмітці')

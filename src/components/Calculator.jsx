@@ -1,9 +1,9 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { computeTramlines, fieldPlan, suggestTracks, coulterOffsets } from '../lib/tramline'
 import { economics } from '../lib/economics'
 import { CROPS, CHASSIS_PRESETS } from '../lib/presets'
 import { defaultMachines } from '../lib/machines'
-import { num, plural } from '../lib/format'
+import { num, plural, rangeText } from '../lib/format'
 import Verdict from './Verdict'
 import { TrackAdvice } from './Advice'
 import MachineList from './MachineList'
@@ -14,9 +14,22 @@ import PassPlan from './PassPlan'
 import PassList from './PassList'
 import Money from './Money'
 
+// Розділи налаштувань. «Машини» першими не стоять навмисно: сівалку задають
+// раз і від неї залежить усе інше, тож із неї й починають.
+const SECTIONS = [
+  { key: 'drill', label: 'Сівалка' },
+  { key: 'machines', label: 'Машини' },
+  { key: 'field', label: 'Поле' },
+  { key: 'money', label: 'Гроші' },
+]
+
 // Сам розрахунок: форма ліворуч, відповідь і докази праворуч. Живе окремо
 // від оболонки, бо оболонка має ще вкладки, акаунт і довідник.
-export default function Calculator({ input, setInput }) {
+// initialSection — з якого розділу відкрити форму. Потрібне перевірці
+// рендером: вона малює всі чотири, щоб жоден не ламався непоміченим.
+export default function Calculator({ input, setInput, initialSection = 'drill' }) {
+  const [section, setSection] = useState(initialSection)
+  const headline = useRef(null)
   const set = (k, v) => setInput((s) => ({ ...s, [k]: v }))
   // onNum, а не num: num з lib/format форматує числа для показу.
   const onNum = (k) => (e) => set(k, Number(e.target.value))
@@ -71,7 +84,9 @@ export default function Calculator({ input, setInput }) {
 
   return (
     <>
-      <div className="headline">
+      <StickyAnswer result={result} watch={headline} />
+
+      <div className="headline" ref={headline}>
         {result.ok
           ? <Verdict result={result} />
           : (
@@ -92,14 +107,40 @@ export default function Calculator({ input, setInput }) {
 
       <div className="cols">
         <form className="form" onSubmit={(e) => e.preventDefault()}>
-          <Drill
-            input={input} set={set} onNum={onNum}
-            pickCrop={pickCrop} result={result}
-            tractor={tractor} setTractor={setTractor}
-          />
+          {/* Розділи налаштувань перемикаються, а не стоять один під одним.
+              Форма виросла до чотирьох панелей, і «поле» з «грошима»
+              опинялися під списком машин — щоб їх побачити, треба було
+              прокрутити всю сторінку. Тепер будь-який розділ за одне
+              натискання, і форма завжди в один екран. */}
+          <div className="fnav" role="tablist" aria-label="Розділи налаштувань">
+            {SECTIONS.map((s) => (
+              <button
+                key={s.key} type="button" role="tab"
+                aria-selected={section === s.key}
+                className={`fnav-b${section === s.key ? ' is-on' : ''}`}
+                onClick={() => setSection(s.key)}
+              >
+                {s.label}
+                {s.key === 'machines' && (
+                  <i className="fnav-n">{machines.filter((m) => m.active !== false).length}</i>
+                )}
+              </button>
+            ))}
+          </div>
 
-          <MachineList machines={machines} setMachines={setMachines} result={result} />
+          {section === 'drill' && (
+            <Drill
+              input={input} set={set} onNum={onNum}
+              pickCrop={pickCrop} result={result}
+              tractor={tractor} setTractor={setTractor}
+            />
+          )}
 
+          {section === 'machines' && (
+            <MachineList machines={machines} setMachines={setMachines} result={result} />
+          )}
+
+          {section === 'field' && (
           <div className="panel">
             <h2>поле</h2>
 
@@ -125,7 +166,9 @@ export default function Calculator({ input, setInput }) {
               {plan && !plan.tooSmall && ` · робочої ${num(plan.workingHa, 1)} га`}
             </div>
           </div>
+          )}
 
+          {section === 'money' && (
           <div className="panel">
             <h2>гроші</h2>
 
@@ -154,6 +197,7 @@ export default function Calculator({ input, setInput }) {
               Проходи — для машин, яким не задано власне число.
             </p>
           </div>
+          )}
         </form>
 
         <div className="stack">
@@ -360,6 +404,56 @@ function Drill({ input, set, onNum, pickCrop, result, tractor, setTractor }) {
         </p>
       </div>
     </div>
+  )
+}
+
+// ── Відповідь, що лишається на видноті ────────────────────────────────────
+//
+// На телефоні форма займає екран, і відповідь уже вище нього: людина міняє
+// колісну базу й не бачить, що з того вийшло, — доводиться щоразу гортати
+// вгору й назад. Тому коли головний вердикт виходить за межі екрана,
+// з'являється вузький рядок із тим самим числом. На широкому екрані його
+// немає: там форма збоку, а відповідь і так перед очима.
+function StickyAnswer({ result, watch }) {
+  const [hidden, setHidden] = useState(true)
+
+  useEffect(() => {
+    const node = watch.current
+    if (!node || typeof IntersectionObserver === 'undefined') return
+    const io = new IntersectionObserver(
+      ([e]) => setHidden(e.isIntersecting || e.boundingClientRect.top > 0),
+      { threshold: 0 },
+    )
+    io.observe(node)
+    return () => io.disconnect()
+  }, [watch])
+
+  if (hidden) return null
+
+  const hit = result.ok ? result.passes.filter((p) => p.disabled.length) : []
+  const toTop = () => watch.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+
+  return (
+    <button type="button" className="sticky-answer" onClick={toTop}>
+      {!result.ok ? (
+        <span className="sa-main is-bad">колія не складається</span>
+      ) : !hit.length ? (
+        <span className="sa-main is-clean">нічого не глушити</span>
+      ) : hit.length === 1 ? (
+        <span className="sa-main">
+          прохід {hit[0].n} з {result.cycle}: <b>{rangeText(hit[0].disabled)}</b>
+        </span>
+      ) : (
+        <span className="sa-main">
+          глушити на {hit.length} з {result.cycle} проходів
+        </span>
+      )}
+      {result.ok && (
+        <span className="sa-side">
+          ритм {result.rhythm} · {num(result.lossPct, 1)} %
+        </span>
+      )}
+    </button>
   )
 }
 

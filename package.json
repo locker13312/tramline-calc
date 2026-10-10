@@ -12,6 +12,7 @@
     "test:render": "vite build --ssr test/ssr-entry.jsx --outDir .ssr-tmp --emptyOutDir --logLevel warn && node .ssr-tmp/ssr-entry.js",
     "test:text": "vite build --ssr test/ssr-text.jsx --outDir .ssr-tmp2 --emptyOutDir --logLevel warn && node .ssr-tmp2/ssr-text.js",
     "test:css": "node test/css-cover.mjs",
+    "test:contrast": "node test/contrast.mjs",
     "test:speed": "node test/speed.mjs",
     "server": "node server/index.js",
     "start": "node server/index.js",
