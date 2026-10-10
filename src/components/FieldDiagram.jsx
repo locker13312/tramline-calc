@@ -1,82 +1,127 @@
 import { runs, num } from '../lib/format'
 
+// ── Прохід зблизька ───────────────────────────────────────────────────────
+//
 // Поле в розрізі: один повний цикл проходів сівалки, смуги під колесами
-// обприскувача і рядки, які через них вимикають. Схема — головний доказ
+// кожної машини й сошники, які через них вимикають. Схема — головний доказ
 // того, що розрахунок правильний: агроном бачить, а не вірить на слово.
-export default function FieldDiagram({ result, rows, rowSpacing }) {
+//
+// Коли машин кілька, смуги різних машин мають бути різного кольору. Інакше
+// найважливіше губиться: чи колесо комбайна стало в ту саму смугу, що й
+// колесо обприскувача, чи поряд із нею — а це різниця між нулем і двадцятьма
+// заглушеними сошниками.
+export default function FieldDiagram({ result }) {
   if (!result?.ok) return null
 
-  const S = result.sprayerWidth
-  const VB_W = 1000              // ширина системи координат SVG
-  const PAD = 26
-  const scale = (VB_W - PAD * 2) / S
+  const period = result.period
+  const offsets = result.coulters
+  const VB_W = 1000
+  const PAD = 30
+  const scale = (VB_W - PAD * 2) / period
   const x = (m) => PAD + m * scale
 
-  const bandTop = 74
-  const bandH = 132
-  const VB_H = bandTop + bandH + 78
+  // Скільком машинам малюємо смуги — стільки й кольорів треба.
+  const ids = [...new Set(result.strips.map((s) => s.machine))]
+  const colour = (id) => `var(--m${(ids.indexOf(id) % 5) + 1})`
+  const labelOf = (id) => result.machines.find((m) => m.id === id)?.label ?? id
+
+  const bandTop = 92
+  const bandH = 136
+  const VB_H = bandTop + bandH + 80
+
+  // Полоса машин над проходами: по одному рядку на машину, щоб було видно її
+  // власну сітку проходів, а не лише сліди коліс.
+  const lanes = ids.map((id, i) => {
+    const own = result.strips.filter((s) => s.machine === id)
+    const m = result.machines.find((mm) => mm.id === id)
+    return { id, i, own, m }
+  })
 
   return (
     <div className="diagram">
       <svg viewBox={`0 0 ${VB_W} ${VB_H}`} role="img"
-        aria-label="Схема проходів сівалки з технологічною колією">
-        {/* Захват обприскувача — одна дуга над усім циклом */}
-        <line x1={x(0)} y1={40} x2={x(S)} y2={40} className="d-boom" />
-        <line x1={x(0)} y1={30} x2={x(0)} y2={50} className="d-boom" />
-        <line x1={x(S)} y1={30} x2={x(S)} y2={50} className="d-boom" />
-        <text x={x(S / 2)} y={26} className="d-label d-label-mid">
-          обприскувач · {num(S)} м
+        aria-label="Схема одного циклу проходів сівалки з технологічною колією">
+        {/* Цикл цілком — дуга над усім */}
+        <line x1={x(0)} y1={54} x2={x(period)} y2={54} className="d-boom" />
+        <line x1={x(0)} y1={46} x2={x(0)} y2={62} className="d-boom" />
+        <line x1={x(period)} y1={46} x2={x(period)} y2={62} className="d-boom" />
+        <text x={x(period / 2)} y={40} className="d-label d-label-mid">
+          цикл · {num(period)} м · {result.cycle} прох. сівалки
         </text>
+
+        {/* Проходи машин: кожна своїм кольором, по центру — вісь проходу */}
+        {lanes.map(({ id, own, m }, i) => {
+          const y = 70 + i * 0
+          const centres = [...new Set(own.map((s) => s.pass))]
+          return (
+            <g key={id}>
+              {centres.map((p) => {
+                const c = (p - 0.5) * m.width + (m.phase || 0)
+                const from = c - m.width / 2
+                const to = c + m.width / 2
+                if (to < -0.01 || from > period + 0.01) return null
+                return (
+                  <line key={`${id}-${p}`}
+                    x1={x(Math.max(from, 0))} y1={y} x2={x(Math.min(to, period))} y2={y}
+                    stroke={colour(id)} strokeWidth="2.5" strokeLinecap="round" opacity="0.5" />
+                )
+              })}
+            </g>
+          )
+        })}
 
         {/* Проходи сівалки */}
         {result.passes.map((p, i) => (
           <g key={p.n}>
-            <rect x={x(p.from)} y={bandTop} width={(p.to - p.from) * scale} height={bandH}
+            <rect x={x(Math.max(p.from, 0))} y={bandTop}
+              width={(Math.min(p.to, period) - Math.max(p.from, 0)) * scale} height={bandH}
               className={`d-pass ${i % 2 ? 'd-pass-alt' : ''} ${p.disabled.length ? 'd-pass-hit' : ''}`} />
-            <text x={x((p.from + p.to) / 2)} y={bandTop + bandH + 20} className="d-label d-label-mid">
+            <text x={x((Math.max(p.from, 0) + Math.min(p.to, period)) / 2)}
+              y={bandTop + bandH + 20} className="d-label d-label-mid">
               прохід {p.n}{p.partial ? ' (половинний)' : ''}
             </text>
           </g>
         ))}
 
-        {/* Смуги під колесами */}
+        {/* Смуги під колесами — кольором машини */}
         {result.strips.map((s, i) => (
-          <rect key={i} x={x(s.from)} y={bandTop - 8} width={(s.to - s.from) * scale}
-            height={bandH + 16} className="d-strip" />
+          <rect key={i} x={x(s.from)} y={bandTop - 10} width={(s.to - s.from) * scale}
+            height={bandH + 20} fill={colour(s.machine)} opacity="0.22" rx="2" />
         ))}
 
-        {/* Рядки: тонка лінія на кожну висівну секцію */}
+        {/* Сошники: тонка лінія на кожен */}
         {result.passes.flatMap((p) =>
-          Array.from({ length: rows }, (_, j) => {
+          offsets.map((o, j) => {
             const m = j + 1
-            const pos = p.from + (m - 0.5) * rowSpacing
+            const pos = p.from + o
+            if (pos < -0.01 || pos > period + 0.01) return null
             const off = p.disabled.includes(m)
-            const unsown = p.partial && p.sowingRows && !p.sowingRows.includes(m)
-            if (unsown) return null
+            if (p.partial && p.sowingRows && !p.sowingRows.includes(m)) return null
             return (
-              <line key={`${p.n}-${m}`} x1={x(pos)} y1={bandTop + 10} x2={x(pos)} y2={bandTop + bandH - 10}
+              <line key={`${p.n}-${m}`} x1={x(pos)} y1={bandTop + 12} x2={x(pos)} y2={bandTop + bandH - 12}
                 className={off ? 'd-row-off' : 'd-row'} />
             )
           }),
         )}
 
-        {/* Один підпис на суцільну групу вимкнених секцій. Поштучні номери
+        {/* Один підпис на суцільну групу вимкнених сошників. Поштучні номери
             при міжрядді 15 см налазять один на одного. */}
         {result.passes.flatMap((p) =>
           runs(p.disabled).map(([lo, hi]) => {
-            const mid = p.from + ((lo + hi) / 2 - 0.5) * rowSpacing
+            const mid = p.from + (offsets[lo - 1] + offsets[hi - 1]) / 2
+            if (mid < -0.01 || mid > period + 0.01) return null
             return (
-              <text key={`n-${p.n}-${lo}`} x={x(mid)} y={bandTop - 14} className="d-num">
+              <text key={`n-${p.n}-${lo}`} x={x(mid)} y={bandTop - 16} className="d-num">
                 {lo === hi ? lo : `${lo}–${hi}`}
               </text>
             )
           }),
         )}
 
-        {/* Лінійка */}
-        <line x1={x(0)} y1={VB_H - 28} x2={x(S)} y2={VB_H - 28} className="d-ruler" />
+        {/* Лінійка по межах проходів сівалки */}
+        <line x1={x(0)} y1={VB_H - 28} x2={x(period)} y2={VB_H - 28} className="d-ruler" />
         {Array.from({ length: result.cycle + 1 }, (_, i) => {
-          const pos = result.passes[0].from + i * result.drillWidth
+          const pos = i * result.drillWidth
           return (
             <g key={i}>
               <line x1={x(pos)} y1={VB_H - 33} x2={x(pos)} y2={VB_H - 23} className="d-ruler" />
@@ -87,9 +132,13 @@ export default function FieldDiagram({ result, rows, rowSpacing }) {
       </svg>
 
       <div className="legend">
-        <span><i className="sw sw-row" /> засіяний рядок</span>
-        <span><i className="sw sw-off" /> вимкнена секція</span>
-        <span><i className="sw sw-strip" /> слід колеса обприскувача</span>
+        <span><i className="sw sw-row" /> засіяний сошник</span>
+        <span><i className="sw sw-off" /> вимкнений сошник</span>
+        {ids.map((id) => (
+          <span key={id}>
+            <i className="sw sw-strip" style={{ background: colour(id) }} /> слід «{labelOf(id)}»
+          </span>
+        ))}
       </div>
     </div>
   )

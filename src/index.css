@@ -417,6 +417,245 @@ body {
   .passtable th, .passtable td { padding: 6px 8px; }
 }
 
+/* ── Парк машин ────────────────────────────────────────── */
+/* Кольори машин. Беруться по порядку в списку й тримаються однакові всюди:
+   у формі, у присуді, на карті поля й на схемі проходу. Якщо колесо комбайна
+   стало в ту саму смугу, що й колесо обприскувача, це має бути видно одним
+   поглядом, а не вичитуватись із чисел. */
+:root {
+  --m1: #b04a2f;   /* слід першої машини — той самий колір, що й колія */
+  --m2: #2f6ea8;
+  --m3: #8a5d9e;
+  --m4: #b08a1f;
+  --m5: #2f8a6e;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --m1: #d4795f;
+    --m2: #6aa8d8;
+    --m3: #b58fc8;
+    --m4: #d9b451;
+    --m5: #5fc2a1;
+  }
+}
+
+.mlist { display: flex; flex-direction: column; gap: 8px; margin-bottom: 12px; }
+
+.mcard {
+  border: 1px solid var(--line); border-radius: 10px;
+  background: var(--sunken); overflow: hidden;
+  transition: border-color 0.15s ease, opacity 0.15s ease;
+}
+.mcard.is-open { border-color: var(--line-2); background: var(--panel); }
+.mcard.is-off { opacity: 0.5; }
+.mcard-top { display: flex; align-items: center; gap: 9px; padding: 8px 10px; }
+
+.mcard-name {
+  flex: 1; min-width: 0; display: block; text-align: left;
+  border: 0; background: none; padding: 0; cursor: pointer; font: inherit;
+  color: var(--ink);
+}
+.mcard-label {
+  display: flex; align-items: center; gap: 7px;
+  font-size: 13.5px; font-weight: 600; line-height: 1.3;
+}
+.mcard-sum {
+  display: block; font-family: var(--mono); font-size: 11px;
+  color: var(--ink-3); margin-top: 2px; padding-left: 16px;
+}
+.mcard-badges { display: flex; align-items: center; gap: 6px; flex-shrink: 0; }
+.mcard-chev { color: var(--ink-3); font-size: 11px; width: 10px; }
+
+.mdot {
+  width: 9px; height: 9px; border-radius: 50%; flex-shrink: 0;
+  background: var(--m, var(--m1));
+}
+
+/* Перемикач «враховувати машину». Це найважливіша кнопка у формі: саме нею
+   порівнюють, чого коштує завести комбайн у ту саму колію. */
+.mswitch { position: relative; flex-shrink: 0; width: 34px; height: 20px; cursor: pointer; }
+.mswitch input { position: absolute; opacity: 0; width: 100%; height: 100%; margin: 0; cursor: pointer; }
+.mswitch span {
+  position: absolute; inset: 0; border-radius: 999px;
+  background: var(--line-2); transition: background 0.18s ease;
+}
+.mswitch span::after {
+  content: ''; position: absolute; top: 2px; left: 2px;
+  width: 16px; height: 16px; border-radius: 50%; background: var(--panel);
+  transition: transform 0.18s ease;
+}
+.mswitch input:checked + span { background: var(--crop); }
+.mswitch input:checked + span::after { transform: translateX(14px); }
+.mswitch input:focus-visible + span { box-shadow: 0 0 0 3px var(--crop-soft); }
+
+.mbadge {
+  font-family: var(--mono); font-size: 9.5px; font-weight: 700;
+  letter-spacing: 0.06em; text-transform: uppercase;
+  padding: 2px 7px; border-radius: 5px; white-space: nowrap;
+  background: var(--sunken); color: var(--ink-3); border: 1px solid var(--line);
+}
+.mbadge.is-base { background: var(--crop); color: #fff; border-color: var(--crop); }
+.mbadge.is-good { background: var(--crop-soft); color: var(--crop); border-color: var(--crop); }
+.mbadge.is-cost { background: var(--track-soft); color: var(--track); border-color: var(--track); }
+.mbadge.is-bad { background: var(--warn-soft); color: var(--warn); border-color: var(--warn); }
+
+.mcard-body { padding: 4px 11px 12px; border-top: 1px solid var(--line); }
+.mcard-body > label:first-child { margin-top: 11px; }
+.mcard-foot { margin-top: 11px; padding-top: 10px; border-top: 1px solid var(--line); }
+
+.maxle {
+  border: 1px dashed var(--line-2); border-radius: 8px;
+  padding: 10px 11px 2px; margin-bottom: 12px;
+}
+.maxle-h {
+  display: flex; align-items: baseline; justify-content: space-between; gap: 8px;
+  font-family: var(--mono); font-size: 10.5px; letter-spacing: 0.08em;
+  text-transform: uppercase; color: var(--ink-3); margin-bottom: 9px;
+}
+
+.mlink {
+  border: 0; background: none; padding: 0; cursor: pointer;
+  font: 500 12px var(--sans); color: var(--crop);
+  text-decoration: underline; text-decoration-thickness: 1px;
+  text-underline-offset: 2px;
+}
+.mlink:hover { color: var(--ink); }
+.mlink.is-danger { color: var(--track); }
+.mlink-block { display: block; margin: 2px 0 13px; }
+.mwide { width: 100%; }
+.madd { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+
+.form textarea {
+  display: block; width: 100%; margin-top: 5px; resize: vertical;
+  padding: 9px 11px; font: 500 13px var(--mono);
+  color: var(--ink); background: var(--sunken);
+  border: 1px solid var(--line); border-radius: 8px;
+}
+.form textarea:focus { outline: none; border-color: var(--crop); box-shadow: 0 0 0 3px var(--crop-soft); }
+
+/* ── Присуд по кожній машині ───────────────────────────── */
+.mrows { display: flex; flex-direction: column; gap: 9px; }
+.mrow {
+  border: 1px solid var(--line); border-left: 3px solid var(--m, var(--m1));
+  border-radius: 9px; padding: 11px 13px; background: var(--sunken);
+}
+.mrow.is-bad { background: var(--warn-soft); border-color: var(--warn); }
+.mrow-head {
+  display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+  font-size: 14.5px; line-height: 1.3;
+}
+.mrow-w { font-family: var(--mono); font-size: 11.5px; color: var(--ink-3); }
+.mrow-text { font-size: 13px; color: var(--ink-2); line-height: 1.55; margin-top: 5px; }
+.mrow-text b { color: var(--ink); }
+
+.mrow-cost { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 9px; }
+.mstat {
+  display: flex; flex-direction: column; gap: 1px;
+  padding: 7px 11px; border-radius: 7px; background: var(--panel);
+  border: 1px solid var(--line);
+  font-family: var(--mono); font-size: 13.5px; font-weight: 650;
+}
+.mstat i {
+  font-style: normal; font-weight: 400; font-size: 11px;
+  font-family: var(--sans); color: var(--ink-3); line-height: 1.4;
+}
+.mstat.is-good { color: var(--crop); border-color: var(--crop); }
+.mstat.is-cost { color: var(--track); border-color: var(--track); }
+
+.mrow-opts { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin-top: 9px; }
+.mrow-opts-k { font-size: 11.5px; color: var(--ink-3); }
+.mchip {
+  font-family: var(--mono); font-size: 12.5px; font-weight: 600;
+  padding: 4px 10px; border-radius: 6px;
+  background: var(--panel); border: 1px solid var(--line); color: var(--ink-2);
+}
+.mchip.is-good { border-color: var(--crop); color: var(--crop); background: var(--crop-soft); }
+.mchip.is-act { cursor: pointer; font: 600 12.5px var(--mono); }
+.mchip.is-act:hover { border-color: var(--crop); color: var(--crop); }
+
+/* Через кого саме глухне сошник — у картці циклу. */
+.cycle-why {
+  font-size: 11px; color: var(--ink-2); margin-top: 4px;
+  font-family: var(--mono); line-height: 1.4;
+}
+.cycle-why span { color: var(--ink-3); }
+
+/* Розклад витоптаного по машинах. */
+.mbars { display: flex; flex-direction: column; gap: 1px; margin-top: 12px;
+  background: var(--line); border: 1px solid var(--line); border-radius: 9px; overflow: hidden; }
+.mbar {
+  display: flex; align-items: baseline; justify-content: space-between; gap: 12px;
+  padding: 8px 12px; background: var(--panel);
+}
+.mbar-k { font-size: 13px; }
+.mbar-k i { display: block; font-style: normal; font-size: 11px; color: var(--ink-3); font-family: var(--mono); }
+.mbar-v { font-family: var(--mono); font-size: 13.5px; font-weight: 650; white-space: nowrap; }
+
+/* ── Карта поля ────────────────────────────────────────── */
+.plan-head {
+  display: flex; align-items: baseline; justify-content: space-between;
+  gap: 12px; flex-wrap: wrap; padding: 4px 0 8px;
+}
+.plan-head .plan-dim { padding: 0; }
+.fieldmap { border-radius: 8px; }
+.f-croprow { stroke: var(--crop); stroke-width: 1; opacity: 0.4; }
+.f-headrow { stroke: var(--ink-3); stroke-width: 1; opacity: 0.3; }
+
+/* ── Вхід у систему ────────────────────────────────────── */
+/* Коротка анімація на відкритті. Сенс не в оздобленні: смуги виїжджають
+   рівно так, як сівалка кладе проходи, а розрив між ними — та сама колія,
+   про яку вся програма. Три чверті секунди, один раз, і більше ніколи. */
+@keyframes sow {
+  from { transform: scaleY(0); opacity: 0; }
+  to { transform: scaleY(1); opacity: 1; }
+}
+@keyframes lift {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: none; }
+}
+.intro {
+  position: fixed; inset: 0; z-index: 50;
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: 18px; background: var(--bg);
+  animation: fade-out 0.3s ease 0.95s forwards;
+}
+@keyframes fade-out { to { opacity: 0; visibility: hidden; } }
+.intro-field { display: flex; align-items: flex-end; gap: 5px; height: 76px; }
+.intro-row {
+  width: 7px; height: 100%; border-radius: 3px;
+  background: var(--crop); transform-origin: bottom;
+  animation: sow 0.34s cubic-bezier(0.2, 0.8, 0.3, 1) backwards;
+}
+.intro-row.is-track { background: var(--track); opacity: 0.28; }
+.intro-name {
+  font-size: 15px; font-weight: 600; letter-spacing: -0.01em;
+  animation: lift 0.4s ease 0.42s backwards;
+}
+.intro-sub {
+  font-family: var(--mono); font-size: 11.5px; color: var(--ink-3);
+  animation: lift 0.4s ease 0.54s backwards;
+}
+/* Анімація — приємність, а не умова роботи. Кому вона шкодить, той її не
+   побачить, і сторінка просто з'явиться. */
+@media (prefers-reduced-motion: reduce) {
+  .intro { animation-delay: 0s; animation-duration: 0.01s; }
+  .intro-row, .intro-name, .intro-sub { animation: none; }
+}
+
+/* Відповідь і панелі проступають, а не блимають. */
+.headline > .verdict { animation: lift 0.32s ease backwards; }
+
+/* На вузькому екрані назва машини, її розміри й значки не вміщаються в один
+   рядок: значки з'їжджають під назву, а не ріжуться краєм картки. */
+@media (max-width: 460px) {
+  .mcard-top { flex-wrap: wrap; }
+  .mcard-name { flex-basis: calc(100% - 100px); }
+  .mcard-badges { margin-left: 43px; }
+  .mstat { flex: 1 1 100%; }
+  .intro-field { height: 58px; gap: 4px; }
+  .intro-row { width: 6px; }
+}
+
 /* ── Аркуш у кабіну ────────────────────────────────────── */
 /* Друкують заради одного: відповіді й списку проходів. Форма, вкладки й
    гроші на папері тільки заважають, а таблицю треба розпустити на всю

@@ -1,12 +1,13 @@
-import { rangeText, plural } from '../lib/format'
+import { rangeText, plural, num } from '../lib/format'
 
 // Головна відповідь одним реченням. Людина відкриває програму не заради
 // схем і відсотків — вона хоче знати, що сказати механізаторові перед сівбою.
-export default function Verdict({ result, terms }) {
+export default function Verdict({ result }) {
   if (!result?.ok) return null
 
-  const hit = result.passes.filter(p => p.disabled.length)
+  const hit = result.passes.filter((p) => p.disabled.length)
   const k = result.cycle
+  const serving = result.machines.filter((m) => m.active && m.fits)
 
   // Ритм — те, що вводять у термінал сівалки (Amazone, Lemken, Horsch
   // питають саме це число). Показуємо його поруч із відповіддю, щоб не
@@ -18,9 +19,13 @@ export default function Verdict({ result, terms }) {
     </span>
   )
 
+  const forWhom = serving.length > 1
+    ? ` Одна колія на ${serving.length} ${plural(serving.length, 'машину', 'машини', 'машин')}: ${serving.map((m) => m.label.toLowerCase()).join(', ')}.`
+    : ''
+
   if (!hit.length) {
     const gap = result.passes
-      .flatMap(p => p.clearances)
+      .flatMap((p) => p.clearances)
       .reduce((min, c) => Math.min(min, c.gap), Infinity)
     return (
       <div className="verdict is-clean">
@@ -31,10 +36,10 @@ export default function Verdict({ result, terms }) {
         <div className="verdict-line">Нічого не глушити — колеса йдуть міжряддям.</div>
         <div className="verdict-sub">
           {Number.isFinite(gap)
-            ? `До найближчого рядка лишається ${Math.round(gap * 100)} см. `
+            ? `До найближчого сошника лишається ${Math.round(gap * 100)} см. `
             : ''}
-          Простежте лише, щоб сівалка й обприскувач заходили в поле з одного краю:
-          від цього залежить усе.
+          Простежте лише, щоб усі машини заходили в поле з одного краю:
+          від цього залежить усе.{forWhom}
         </div>
       </div>
     )
@@ -51,32 +56,32 @@ export default function Verdict({ result, terms }) {
       </div>
       <div className="verdict-line">
         {one && (
-          <>На <b>{p.n}-му проході з {k}</b> вимкнути секції <b>{rangeText(p.disabled)}</b></>
+          <>На <b>{p.n}-му проході з {k}</b> вимкнути сошники <b>{rangeText(p.disabled)}</b></>
         )}
         {hit.length === 2 && (
           <>
-            З {k} проходів глушити на <b>{hit[0].n}-му</b> — секції{' '}
-            <b>{rangeText(hit[0].disabled)}</b>, на <b>{hit[1].n}-му</b> — секції{' '}
+            З {k} проходів глушити на <b>{hit[0].n}-му</b> — сошники{' '}
+            <b>{rangeText(hit[0].disabled)}</b>, на <b>{hit[1].n}-му</b> — сошники{' '}
             <b>{rangeText(hit[1].disabled)}</b>
           </>
         )}
-        {/* Асиметричний ритм зачіпає чотири проходи й більше — перелік секцій
-            у заголовку перетворюється на кашу, тож він лишається в картках
-            циклу нижче. */}
+        {/* Коли машин кілька, вимкнені сошники з'являються майже на кожному
+            проході, і перелік у заголовку перетворюється на кашу. Тоді
+            заголовок лишає головне — скільки й де, — а номери йдуть у цикл. */}
         {hit.length > 2 && (
           <>
-            З {k} проходів глушити на{' '}
-            <b>{hit.map(x => `${x.n}-му`).join(', ')}</b> — по половині колії на кожному
+            Глушити на <b>{hit.length} з {k}</b> проходів —{' '}
+            {hit.map((x) => `${x.n}-му`).join(', ')}
           </>
         )}
       </div>
       <div className="verdict-sub">
-        {hit.length > 2 && 'Які саме секції на кожному проході — у циклі нижче. '}
+        {hit.length > 2 && 'Які саме сошники на кожному проході — у циклі нижче. '}
         Число ритму вводять у термінал сівалки, далі цикл повторюється з першого
-        проходу. Секції рахуються зліва направо за напрямком руху.
-        Разом за цикл глушиться{' '}
-        {result.disabledPerCycle} {plural(result.disabledPerCycle, 'секція', 'секції', 'секцій')} із{' '}
-        {result.rowsPerCycle}.
+        проходу. Сошники рахуються зліва направо за напрямком руху. Разом за
+        цикл глушиться{' '}
+        <b>{result.disabledPerCycle}</b> {plural(result.disabledPerCycle, 'сошник', 'сошники', 'сошників')} із{' '}
+        {result.rowsPerCycle} — це {num(result.lossPct, 1)} % недосіяної площі.{forWhom}
       </div>
     </div>
   )

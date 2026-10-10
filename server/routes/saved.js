@@ -11,8 +11,11 @@ router.use(requireAuth)
 const TABLES = {
   machines: {
     columns: ['name', 'rows', 'row_spacing', 'sprayer_width', 'track_width',
-      'tyre_width', 'margin', 'spreader_width', 'half_start'],
+      'tyre_width', 'margin', 'spreader_width', 'half_start', 'park'],
     required: ['name', 'rows', 'row_spacing', 'sprayer_width'],
+    // park — цілий комплект одним JSON. Його не вимагаємо: комплекти,
+    // записані до появи списку машин, мусять зберігатися й надалі.
+    json: ['park'],
   },
   fields: {
     columns: ['name', 'width', 'length', 'headland', 'crop',
@@ -24,7 +27,16 @@ const TABLES = {
 function values(spec, body) {
   const missing = spec.required.filter((c) => body[c] == null || body[c] === '')
   if (missing.length) return { error: `Не заповнено: ${missing.join(', ')}` }
-  return { values: spec.columns.map((c) => (body[c] === '' ? null : body[c] ?? null)) }
+  const json = new Set(spec.json ?? [])
+  return {
+    values: spec.columns.map((c) => {
+      const v = body[c] === '' ? null : body[c] ?? null
+      // JSONB-колонки передаємо рядком: масив, відданий драйверу як є,
+      // перетворився б у масив Postgres, а не в JSON.
+      if (json.has(c) && v != null) return JSON.stringify(v)
+      return v
+    }),
+  }
 }
 
 for (const [table, spec] of Object.entries(TABLES)) {

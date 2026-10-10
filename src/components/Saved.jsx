@@ -33,21 +33,61 @@ const KINDS = {
     title: 'техніка',
     one: 'комплект',
     empty: 'Збережених комплектів ще немає.',
-    from: (input) => ({
-      rows: input.rows, row_spacing: input.rowSpacing, sprayer_width: input.sprayerWidth,
-      track_width: input.trackWidth, tyre_width: input.tyreWidth, margin: input.margin,
-      spreader_width: input.spreaderWidth, half_start: input.halfStart,
-    }),
-    into: (row) => ({
-      rows: Number(row.rows), rowSpacing: Number(row.row_spacing),
-      sprayerWidth: Number(row.sprayer_width), trackWidth: Number(row.track_width),
-      tyreWidth: Number(row.tyre_width), margin: Number(row.margin),
-      spreaderWidth: Number(row.spreader_width), halfStart: !!row.half_start,
-    }),
-    describe: (row) => `сівалка ${num(row.rows * row.row_spacing)} м (${row.rows} × ` +
-      `${num(Number(row.row_spacing))}) · обприскувач ${num(Number(row.sprayer_width))} м · ` +
-      `колія ${num(Number(row.track_width))} м`,
+    from: (input) => {
+      // Головна машина — щоб комплект мав осмислені старі колонки й читався
+      // на клієнті, який про список машин ще не знає.
+      const lead = input.machines?.find((m) => m.base && m.active !== false)
+        || input.machines?.find((m) => m.active !== false)
+        || null
+      return {
+        rows: input.rows, row_spacing: input.rowSpacing,
+        sprayer_width: lead?.width ?? input.sprayerWidth,
+        track_width: lead?.axles?.[0]?.trackWidth ?? input.trackWidth,
+        tyre_width: lead?.axles?.[0]?.tyreWidth ?? input.tyreWidth,
+        margin: input.margin, spreader_width: 0, half_start: input.halfStart,
+        // Повний комплект одним JSON: машини, розкладка сошників, трактор.
+        park: {
+          machines: input.machines ?? null,
+          coulters: input.coulters ?? null,
+          drillWidth: input.drillWidth ?? null,
+          drillTractor: input.drillTractor ?? null,
+        },
+      }
+    },
+    into: (row) => {
+      const base = {
+        rows: Number(row.rows), rowSpacing: Number(row.row_spacing),
+        sprayerWidth: Number(row.sprayer_width), trackWidth: Number(row.track_width),
+        tyreWidth: Number(row.tyre_width), margin: Number(row.margin),
+        halfStart: !!row.half_start,
+      }
+      const park = typeof row.park === 'string' ? safeParse(row.park) : row.park
+      if (!park) return base
+      return {
+        ...base,
+        machines: park.machines ?? undefined,
+        coulters: park.coulters ?? null,
+        drillWidth: park.drillWidth ?? null,
+        drillTractor: park.drillTractor ?? base.drillTractor,
+      }
+    },
+    describe: (row) => {
+      const park = typeof row.park === 'string' ? safeParse(row.park) : row.park
+      const live = park?.machines?.filter((m) => m.active !== false) ?? null
+      return `сівалка ${num(row.rows * row.row_spacing)} м (${row.rows} × ` +
+        `${num(Number(row.row_spacing))})` +
+        (live?.length
+          ? ` · ${live.map((m) => `${m.label} ${num(m.width)} м`).join(' · ')}`
+          : ` · обприскувач ${num(Number(row.sprayer_width))} м · ` +
+            `колія ${num(Number(row.track_width))} м`)
+    },
   },
+}
+
+// Комплект, записаний зламаним клієнтом, не має валити сторінку зі списком:
+// краще показати старі колонки, ніж нічого.
+function safeParse(s) {
+  try { return JSON.parse(s) } catch { return null }
 }
 
 export default function Saved({ kind, input, onLoad }) {

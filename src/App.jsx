@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { DEFAULTS } from './lib/presets'
+import { drillGeometry } from './lib/tramline'
 import { api, token } from './lib/api'
 import Calculator from './components/Calculator'
 import AuthPanel from './components/AuthPanel'
@@ -23,6 +24,30 @@ function Mark({ size = 34 }) {
   )
 }
 
+// Вхід у систему: сівалка кладе проходи, і між ними лишається розрив — та
+// сама колія, про яку вся програма. Три чверті секунди, один раз на відкриття.
+// Довше — це вже не привітання, а затримка.
+function Intro() {
+  const rows = 17
+  // Де проходить колесо: дві смуги замість сходів, симетрично до центра.
+  const track = new Set([5, 11])
+  return (
+    <div className="intro" aria-hidden="true">
+      <div className="intro-field">
+        {Array.from({ length: rows }, (_, i) => (
+          <i
+            key={i}
+            className={`intro-row${track.has(i) ? ' is-track' : ''}`}
+            style={{ animationDelay: `${i * 28}ms` }}
+          />
+        ))}
+      </div>
+      <div className="intro-name">Колія</div>
+      <div className="intro-sub">рахуємо, що глушити</div>
+    </div>
+  )
+}
+
 const TABS = [
   { key: 'calc', label: 'Розрахунок' },
   { key: 'fields', label: 'Мої поля', needsAuth: true },
@@ -37,6 +62,9 @@ export default function App() {
   })
   const [tab, setTab] = useState('calc')
   const [user, setUser] = useState(null)
+  // Анімацію показуємо лише коли сторінку справді відкрили, а не на кожному
+  // перемалюванні; знімаємо її з DOM, щоб вона не перехоплювала натискання.
+  const [intro, setIntro] = useState(true)
   // Поки токен не перевірено, не показуємо ні «Увійти», ні пошту: інакше
   // на кожному відкритті блимає стан «вийшов», хоча людина не виходила.
   const [checked, setChecked] = useState(false)
@@ -46,6 +74,11 @@ export default function App() {
   useEffect(() => {
     try { localStorage.setItem(STORE, JSON.stringify(input)) } catch { /* приватний режим */ }
   }, [input])
+
+  useEffect(() => {
+    const t = setTimeout(() => setIntro(false), 1300)
+    return () => clearTimeout(t)
+  }, [])
 
   useEffect(() => {
     if (!token.get()) { setChecked(true); return }
@@ -69,15 +102,20 @@ export default function App() {
     setTab('calc')
   }
 
-  const drill = input.rows * input.rowSpacing
+  // Довідник порівнює захвати, тож йому потрібен справжній захват сівалки —
+  // а він не завжди «секції × міжряддя»: розкладка сошників буває довільною.
+  const drill = drillGeometry(input).width
+  const lead = (input.machines ?? []).find((m) => m.active !== false)
+  const leadWidth = lead?.width ?? input.sprayerWidth
 
   return (
     <div className="app">
+      {intro && <Intro />}
       <header className="top">
         <Mark />
         <div className="top-name">
           <div className="brand">Колія</div>
-          <div className="brand-sub">що глушити на сівалці, щоб потім було де їздити</div>
+          <div className="brand-sub">які сошники глушити, щоб потім було де їздити</div>
         </div>
         {checked && (
           <div className="top-auth">
@@ -128,13 +166,13 @@ export default function App() {
       )}
 
       {tab === 'rhythms' && (
-        <RhythmTable drillWidth={drill} sprayerWidth={input.sprayerWidth} />
+        <RhythmTable drillWidth={drill} sprayerWidth={leadWidth} />
       )}
 
       <footer className="foot">
-        Сівалка й обприскувач заходять у поле з одного краю; секції рахуються
-        зліва направо за напрямком руху. Рельєф, клини й нерівні межі поля
-        розрахунок не враховує.
+        Усі машини заходять у поле з одного краю; сошники рахуються зліва
+        направо за напрямком руху. Розрахунок одновимірний — рельєф, клини й
+        нерівні межі поля він не враховує.
       </footer>
     </div>
   )

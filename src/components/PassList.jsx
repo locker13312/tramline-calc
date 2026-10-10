@@ -20,7 +20,7 @@ export default function PassList({ plan, rowSpacing }) {
   const shown = onlyTramlines ? tramlinePasses : passes
 
   return (
-    <div className="panel passlist">
+    <div className="panel">
       <h2>
         проходи по полю — {passes.length}{' '}
         {plural(passes.length, 'прохід', 'проходи', 'проходів')}
@@ -30,7 +30,7 @@ export default function PassList({ plan, rowSpacing }) {
         Рахунок іде від того краю поля, з якого заходить сівалка. Колію нарізають{' '}
         {tramlinePasses.length}{' '}
         {plural(tramlinePasses.length, 'прохід', 'проходи', 'проходів')} із{' '}
-        {passes.length}; на решті сіють усіма секціями.
+        {passes.length}; на решті сіють усіма сошниками.
       </p>
 
       <div className="strip" role="list" aria-label="Усі проходи сівалки">
@@ -68,7 +68,7 @@ export default function PassList({ plan, rowSpacing }) {
               <th>Прохід</th>
               <th>Від краю, м</th>
               <th>Що вимкнути</th>
-              <th>Сіють секції</th>
+              <th>Сіють сошники</th>
             </tr>
           </thead>
           <tbody>
@@ -98,8 +98,8 @@ export default function PassList({ plan, rowSpacing }) {
       </div>
 
       <p className="note" style={{ margin: '12px 0 0' }}>
-        Секції рахуються зліва направо за напрямком руху. Міжряддя{' '}
-        {num(rowSpacing * 100, 0)} см, тож кожна вимкнена секція — смуга{' '}
+        Сошники рахуються зліва направо за напрямком руху. Міжряддя{' '}
+        {num(rowSpacing * 100, 0)} см, тож кожен вимкнений сошник — смуга{' '}
         {num(rowSpacing * 100, 0)} см без сходів.
       </p>
     </div>
@@ -109,7 +109,7 @@ export default function PassList({ plan, rowSpacing }) {
 function passTitle(p) {
   const parts = [`прохід ${p.i}`]
   if (p.tramline) parts.push(`вимкнути ${rangeText(p.disabled)}`)
-  else parts.push('сіють усі секції')
+  else parts.push('сіють усі сошники')
   if (p.outside.length) parts.push(`за межею: ${rangeText(p.outside)}`)
   return parts.join(' · ')
 }

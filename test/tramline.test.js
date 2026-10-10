@@ -175,7 +175,7 @@ test('обсів ширший за поле — плану немає, а не �
 
 // ── Підбір колії ──────────────────────────────────────────────────────────
 
-import { suggestTracks, secondMachine, rhythmOf } from '../src/lib/tramline.js'
+import { suggestTracks, rhythmOf } from '../src/lib/tramline.js'
 
 test('на 70 см підказує колію, кратну парному числу міжрядь', () => {
   const s = suggestTracks({
@@ -209,26 +209,45 @@ test('на вузькому міжрядді чесно каже, що підб�
 })
 
 // ── Друга машина ──────────────────────────────────────────────────────────
+//
+// Розкидач перевірявся окремою функцією на кратність обприскувачу. Тепер він
+// просто машина в списку, і перевірка з нього строгіша: мало бути кратним —
+// колесо мусить ще й упасти в нарізану смугу. Тести на це живуть у
+// machines.test.js; тут лишилася лише та частина, яку стара функція
+// перевіряла правильно, — кратність сама по собі.
 
 test('кратний розкидач іде кожною n-ю колією', () => {
-  const m = secondMachine({ sprayerWidth: 18, spreaderWidth: 36, rows: 24, rowSpacing: 0.15 })
-  assert.equal(m.ok, true)
-  assert.equal(m.every, 2)
+  const r = computeTramlines({
+    rows: 24, rowSpacing: 0.15, margin: 0.05,
+    machines: [
+      { id: 's', label: 'Обприскувач', width: 18, base: true,
+        axles: [{ trackWidth: 1.8, tyreWidth: 0.35 }] },
+      { id: 'd', label: 'Розкидач', width: 36,
+        axles: [{ trackWidth: 1.8, tyreWidth: 0.55 }] },
+    ],
+  })
+  assert.equal(r.ok, true)
+  const spreader = r.machines.find((m) => m.id === 'd')
+  assert.equal(spreader.fits, true)
+  // Захват удвічі більший за крок колій, тож на цикл обприскувача припадає
+  // пів проходу розкидача: він іде кожною другою колією.
+  assert.equal(r.machines.find((m) => m.id === 's').passesPerCycle, 2)
+  assert.equal(spreader.passesPerCycle, 1)
 })
 
-test('некратний розкидач — видно, що поміняти з обох боків', () => {
-  const m = secondMachine({ sprayerWidth: 25.2, spreaderWidth: 36, rows: 12, rowSpacing: 0.7 })
-  assert.equal(m.ok, false)
-  // Тут жоден захват обприскувача не влаштовує обидві машини, тому лишається
-  // єдиний вихід — розкидач, кратний обприскувачу.
-  assert.ok(m.spreaderOptions.some(o => o.width === 25.2 * 2))
-})
-
-test('розкидач, кратний сівалці, дає готове рішення', () => {
-  const m = secondMachine({ sprayerWidth: 20, spreaderWidth: 33.6, rows: 12, rowSpacing: 0.7 })
-  assert.equal(m.ok, false)
-  assert.ok(m.fixes.some(f => f.sprayerWidth === 16.8 && f.every === 2),
-    `серед виправлень має бути захват 16,8: ${JSON.stringify(m.fixes)}`)
+test('некратний розкидач виноситься з колії, а не вдає, що вклався', () => {
+  const r = computeTramlines({
+    rows: 12, rowSpacing: 0.7, margin: 0.05,
+    machines: [
+      { id: 's', label: 'Обприскувач', width: 25.2, base: true,
+        axles: [{ trackWidth: 2.1, tyreWidth: 0.3 }] },
+      { id: 'd', label: 'Розкидач', width: 36,
+        axles: [{ trackWidth: 1.8, tyreWidth: 0.55 }] },
+    ],
+  })
+  const spreader = r.machines.find((m) => m.id === 'd')
+  assert.equal(spreader.fits, false)
+  assert.ok(spreader.options.length > 0, 'має підказати робочі захвати')
 })
 
 // ── Економіка ─────────────────────────────────────────────────────────────
