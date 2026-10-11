@@ -29,7 +29,10 @@ router.post('/register', async (req, res) => {
   } catch (e) {
     // 23505 — unique_violation на email
     if (e.code === '23505') return res.status(409).json({ error: 'Такий акаунт уже є — увійдіть' })
-    res.status(500).json({ error: e.message })
+    // Назовні — одне речення. Текст від Postgres містить назви колонок і сам
+    // запит; читати його треба в журналі сервера, а не в чужому браузері.
+    console.error('POST /api/auth/register:', e)
+    res.status(500).json({ error: 'Збій на сервері — спробуйте ще раз' })
   }
 })
 
@@ -47,14 +50,21 @@ router.post('/login', async (req, res) => {
     }
     res.json({ token: sign(user), user: clean(user) })
   } catch (e) {
-    res.status(500).json({ error: e.message })
+    console.error('POST /api/auth/login:', e)
+    res.status(500).json({ error: 'Збій на сервері — спробуйте ще раз' })
   }
 })
 
 router.get('/me', requireAuth, async (req, res) => {
-  const { rows } = await pool.query('SELECT id, email, name FROM users WHERE id = $1', [req.user.id])
-  if (!rows[0]) return res.status(401).json({ error: 'Акаунт не знайдено' })
-  res.json({ user: rows[0] })
+  try {
+    const { rows } = await pool.query(
+      'SELECT id, email, name FROM users WHERE id = $1', [req.user.id])
+    if (!rows[0]) return res.status(401).json({ error: 'Акаунт не знайдено' })
+    res.json({ user: rows[0] })
+  } catch (e) {
+    console.error('GET /api/auth/me:', e)
+    res.status(500).json({ error: 'Збій на сервері — спробуйте ще раз' })
+  }
 })
 
 export default router

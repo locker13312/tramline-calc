@@ -8,7 +8,7 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import {
   computeTramlines, suggestTracks, trackOptionsFor,
-  drillGeometry, coulterOffsets,
+  drillGeometry, coulterOffsets, resolveMargin, AUTO_MARGIN, LIMITS,
 } from '../src/lib/tramline.js'
 import { normaliseMachines, defaultMachines, newMachine } from '../src/lib/machines.js'
 
@@ -377,4 +377,63 @@ test('нова машина отримує свій id і свої осі, а н
   assert.equal(a.axles.length, 2)
   a.axles[0].trackWidth = 9.9
   assert.notEqual(b.axles[0].trackWidth, 9.9)
+})
+
+// ── Запас: система чи людина ──────────────────────────────────────────────
+//
+// Запас з кожного боку смуги вирішує, чи глухне сошник на межі. Раніше це
+// було просто поле з числом; тепер у формі прапорець, і від нього залежить,
+// чиє число бере розрахунок — бо під GPS-підрулюванням запас нульовий, а на
+// схилі його беруть більшим, і вгадувати за господаря програма не має права.
+
+test('без прапорця запас бере система, а не число з форми', () => {
+  assert.equal(resolveMargin({}), AUTO_MARGIN)
+  assert.equal(resolveMargin({ marginManual: false, margin: 0.4 }), AUTO_MARGIN,
+    'прапорець знято — число у формі не діє')
+  assert.equal(resolveMargin({ marginManual: true, margin: 0.4 }), 0.4)
+})
+
+test('нульовий запас вручну — це нуль, а не «не задано»', () => {
+  assert.equal(resolveMargin({ marginManual: true, margin: 0 }), 0)
+})
+
+test('комплект, записаний до появи прапорця, читається з самого числа', () => {
+  // Хто вводив запас вручну, той лишив його не таким, як бере система.
+  assert.equal(resolveMargin({ margin: 0.05 }), 0.05)
+  assert.equal(resolveMargin({ margin: AUTO_MARGIN }), AUTO_MARGIN)
+})
+
+test('сміття замість запасу не стає запасом', () => {
+  for (const bad of [NaN, Infinity, -1, 'абв', null, undefined, {}, []]) {
+    const v = resolveMargin({ marginManual: true, margin: bad })
+    assert.ok(Number.isFinite(v) && v >= 0 && v <= LIMITS.margin, `запас ${bad} → ${v}`)
+  }
+  assert.equal(resolveMargin({ marginManual: true, margin: 1e6 }), LIMITS.margin,
+    'запас ширший за межу зводиться до межі')
+})
+
+test('запас задає ширину смуги, а більший запас не глушить менше', () => {
+  const machines = [sprayer18(2.1)]
+  let last = -1
+  for (const margin of [0, 0.05, 0.1, 0.2, 0.4]) {
+    const r = computeTramlines({ ...grain, marginManual: true, margin, machines })
+    assert.equal(r.ok, true, `запас ${margin}`)
+    assert.ok(r.disabledPerCycle >= last,
+      `запас ${margin}: глушимо ${r.disabledPerCycle}, а при меншому запасі ${last}`)
+    last = r.disabledPerCycle
+    // Смуга під колесом — шина плюс запас з обох боків, і ніяк інакше.
+    for (const s of r.strips) {
+      assert.ok(Math.abs((s.to - s.from) - (0.35 + 2 * margin)) < 1e-6,
+        `смуга ${s.to - s.from} при шині 0,35 і запасі ${margin}`)
+    }
+  }
+})
+
+test('машина зі своїм запасом не чіпає решту парку', () => {
+  const list = normaliseMachines({
+    marginManual: true, margin: 0.1,
+    machines: [sprayer18(), { ...combine9(), margin: 0.3 }],
+  })
+  assert.equal(list.find((m) => m.id === 's').margin, 0.1)
+  assert.equal(list.find((m) => m.id === 'c').margin, 0.3)
 })

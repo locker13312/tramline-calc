@@ -3,14 +3,21 @@
 
 import { defaultMachines } from './machines.js'
 
+// Культура тут — це лише двійка «міжряддя × сошники», з якої зручно почати:
+// будь-яке число у формі перебивається власним, і для культури, якої в списку
+// немає, достатньо задати ці два числа руками. Саме тому в списку є й «своє»:
+// коли числа вже не ті, що в пресеті, назва культури в полі брехала б.
 export const CROPS = [
   { key: 'sunflower', label: 'Соняшник',       rowSpacing: 0.70, rows: 12 },
   { key: 'corn',      label: 'Кукурудза',      rowSpacing: 0.70, rows: 12 },
+  { key: 'sorghum',   label: 'Сорго',          rowSpacing: 0.70, rows: 12 },
   { key: 'soy',       label: 'Соя',            rowSpacing: 0.45, rows: 16 },
   { key: 'sugarbeet', label: 'Цукровий буряк', rowSpacing: 0.45, rows: 18 },
+  { key: 'rapeseed',  label: 'Ріпак',          rowSpacing: 0.25, rows: 16 },
   { key: 'wheat',     label: 'Пшениця',        rowSpacing: 0.15, rows: 24 },
   { key: 'barley',    label: 'Ячмінь',         rowSpacing: 0.15, rows: 24 },
-  { key: 'rapeseed',  label: 'Ріпак',          rowSpacing: 0.25, rows: 16 },
+  { key: 'oats',      label: 'Овес',           rowSpacing: 0.15, rows: 24 },
+  { key: 'peas',      label: 'Горох',          rowSpacing: 0.15, rows: 24 },
 ]
 
 // Ширини захвату, що реально ходять по полях.
@@ -42,7 +49,10 @@ export const DEFAULTS = {
   // нарізається, — але його слід лягає на кожному проході, і видно, де саме.
   drillTractor: { trackWidth: 1.8, tyreWidth: 0.52, closeOwnTracks: false },
   machines: defaultMachines(),
+  // Запас з кожного боку смуги. За замовчуванням його бере система (0,10 м);
+  // marginManual означає, що число задала людина й система його не чіпає.
   margin: 0.1,
+  marginManual: false,
   halfStart: false,
   fieldWidth: 600,
   fieldLength: 800,

@@ -9,6 +9,8 @@
 // заповнює господар. Додали перевантажувач з колією 1,8 м — розрахунок
 // одразу інший, без правок у математиці.
 
+import { LIMITS, resolveMargin } from './geometry.js'
+
 // Типові машини українських господарств — щоб не вбивати цифри руками.
 // Будь-яке значення у формі перебивається власним.
 //
@@ -85,41 +87,73 @@ export function defaultMachines() {
 // Привести будь-що, що прийшло з форми чи з localStorage, до вигляду, з яким
 // працює геометрія. Стара форма (sprayerWidth / trackWidth / tyreWidth без
 // списку машин) теж читається — збережені поля не мають ламатися.
+//
+// Сюди приходить і сміття: список може бути рядком, машина — null, вісь —
+// без жодного числа. Нічого з цього не має права впасти, тому кожне поле
+// проходить через Number і перевірку, а не береться як є.
 export function normaliseMachines(input) {
-  const raw = Array.isArray(input.machines) && input.machines.length
-    ? input.machines
+  const raw = Array.isArray(input?.machines) && input.machines.length
+    ? input.machines.filter((m) => m && typeof m === 'object' && !Array.isArray(m))
     : [{
       id: 'sprayer', kind: 'sprayer', label: 'Обприскувач', base: true,
       width: input.sprayerWidth,
       axles: [{ trackWidth: input.trackWidth, tyreWidth: input.tyreWidth }],
     }]
 
+  // Число або нуль: NaN, Infinity, рядок із комою й мінус однаково не числа.
+  const good = (v) => {
+    const n = Number(v)
+    return Number.isFinite(n) && n > 0 ? n : 0
+  }
+
+  // Запас на весь парк: той, що задала людина, або той, що бере система.
+  // Машина може мати свій — тоді діє він, і тільки для неї.
+  const shared = resolveMargin(input)
+  const marginOf = (v) => {
+    if (v == null || v === '') return shared
+    const n = Number(v)
+    return Number.isFinite(n) && n >= 0 ? Math.min(n, LIMITS.margin) : shared
+  }
+
   const list = raw.map((m, i) => {
-    const axles = (m.axles?.length
+    const axles = (Array.isArray(m.axles) && m.axles.length
       ? m.axles
       : [{ trackWidth: m.trackWidth, tyreWidth: m.tyreWidth }])
-      .map((a) => ({ trackWidth: Number(a.trackWidth) || 0, tyreWidth: Number(a.tyreWidth) || 0 }))
+      .filter((a) => a && typeof a === 'object')
+      .slice(0, 4)      // більше чотирьох осей не буває навіть у комбайна з візком
+      .map((a) => ({ trackWidth: good(a.trackWidth), tyreWidth: good(a.tyreWidth) }))
       .filter((a) => a.trackWidth > 0 && a.tyreWidth > 0)
+    const width = good(m.width)
     return {
-      id: m.id ?? `m${i + 1}`,
-      kind: m.kind ?? 'other',
-      label: m.label || kindOf(m.kind).label,
-      width: Number(m.width) || 0,
+      id: typeof m.id === 'string' && m.id ? m.id : `m${i + 1}`,
+      kind: typeof m.kind === 'string' ? m.kind : 'other',
+      label: typeof m.label === 'string' && m.label.trim() ? m.label : kindOf(m.kind).label,
+      width,
       axles,
-      // Запас на знос керма спільний на всі машини, якщо машина не задала свій.
-      margin: Number(m.margin ?? input.margin ?? 0.1),
+      // Запас спільний на весь парк, якщо машина не задала свій. Мінусовий
+      // зробив би смугу вужчою за шину, тож нижня межа — нуль.
+      margin: marginOf(m.margin),
       // Своє число проходів за сезон — лише якщо машина його задала. Інакше
       // null, і гроші візьмуть спільне число з форми: вгадувати за машину,
       // скільки разів вона виїде, програма не має права.
-      passes: m.passes == null || m.passes === '' ? null : Number(m.passes),
+      passes: m.passes == null || m.passes === '' || !Number.isFinite(Number(m.passes))
+        ? null
+        : Math.max(0, Number(m.passes)),
       // wanted — людина хоче цю машину в колії; active — вона справді
       // годиться для розрахунку. Розрізняти їх обов'язково: стерте поле
       // захвату робить машину непридатною, і якщо про це не сказати, цифри
       // просто змінюються без причини.
       wanted: m.active !== false,
-      active: m.active !== false && Number(m.width) > 0 && axles.length > 0,
+      active: m.active !== false && width > 0 && width <= LIMITS.machineWidth && axles.length > 0,
+      // Захват, якого не буває: не «велика машина», а описка. Відрізняємо її
+      // від незаповненого поля, бо сказати треба різне.
+      tooWide: width > LIMITS.machineWidth,
       base: !!m.base,
-      phase: m.phase == null || m.phase === '' ? null : Number(m.phase),
+      // Зсув циклічний за визначенням: 999 м для 18-метрової машини — це той
+      // самий зсув, що й 3 м, і від'ємний теж зводиться в межі захвату.
+      phase: m.phase == null || m.phase === '' || !Number.isFinite(Number(m.phase))
+        ? null
+        : (width > 0 ? ((Number(m.phase) % width) + width) % width : 0),
     }
   })
 

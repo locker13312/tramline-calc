@@ -142,3 +142,56 @@ test('захват рядком з форми не робить машину н�
   assert.equal(list[0].width, 18)
   assert.equal(list[0].axles[0].trackWidth, 1.8)
 })
+
+// Розкладка з літер замість чисел лишала сівалку без жодного сошника, але із
+// живим захватом: програма рахувала колію на полі, де сіяти нічим, і бодро
+// повідомляла «глушити нічого» — при NaN у відсотку недосіяного.
+test('розкладка без жодного числа повертає до рівномірної сівалки', () => {
+  const g = drillGeometry({ rows: 24, rowSpacing: 0.15, coulters: ['а', 'б', 'в'] })
+  assert.equal(g.rows, 24, 'сошники беруться з рівномірної розкладки')
+  assert.equal(g.custom, false, 'і це не «своя розкладка»')
+  assert.equal(g.width, 3.6)
+
+  const r = computeTramlines({ ...grain, coulters: ['а', 'б', 'в'], machines: [sprayer()] })
+  assert.equal(r.ok, true)
+  assert.ok(Number.isFinite(r.lossPct), `втрата ${r.lossPct}`)
+  assert.equal(r.rows, 24)
+})
+
+// Запас приходив у смугу як є, і NaN робив смугу «нізвідки нікуди»: вона не
+// глушила нічого, а на схемі малювалася порожнечею.
+test('зіпсований запас трактора сівалки не робить смугу з NaN', () => {
+  const r = computeTramlines({
+    ...grain, machines: [sprayer()],
+    drillTractor: { trackWidth: 1.8, tyreWidth: 0.5, margin: NaN, closeOwnTracks: true },
+  })
+  assert.equal(r.ok, true)
+  for (const b of r.ownBands) {
+    assert.ok(Number.isFinite(b.from) && Number.isFinite(b.to), `смуга ${b.from}–${b.to}`)
+  }
+})
+
+// `Infinity > 0` — правда, і нескінченна ширина поля протікала далі: «поле
+// Infinity га», «проходів Infinity».
+test('нескінченна сторона поля — це не поле, а відсутність плану', () => {
+  const r = computeTramlines({ ...grain, machines: [sprayer()] })
+  for (const bad of [Infinity, -Infinity, NaN, null, 'абв']) {
+    assert.equal(fieldPlan(r, { fieldWidth: bad, fieldLength: 800, rowSpacing: 0.15 }), null,
+      `ширина ${bad}`)
+    assert.equal(fieldPlan(r, { fieldWidth: 600, fieldLength: bad, rowSpacing: 0.15 }), null,
+      `довжина ${bad}`)
+  }
+})
+
+// Прапорець стоїть, а колії чи шини трактора немає: сошники під його слідом
+// не глухли, і про це ніде не було сказано — виглядало як невидимий збій.
+test('порожній трактор сівалки з прапорцем дає попередження, а не тишу', () => {
+  const r = computeTramlines({
+    ...grain, machines: [sprayer()],
+    drillTractor: { trackWidth: 0, tyreWidth: 0.5, closeOwnTracks: true },
+  })
+  assert.equal(r.ok, true)
+  assert.equal(r.ownBands.length, 0)
+  assert.ok(r.warnings.some((w) => w.includes('слід трактора')),
+    `мусить бути попередження: ${JSON.stringify(r.warnings)}`)
+})

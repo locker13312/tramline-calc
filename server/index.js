@@ -13,17 +13,24 @@ app.use(express.json({ limit: '256kb' }))
 // Найпростіший захист від перебору пароля: рахуємо спроби на IP у памʼяті
 // процесу. Для одного сервісу з однією копією цього досить, Redis тут зайвий.
 const attempts = new Map()
+const WINDOW = 15 * 60 * 1000
 app.use('/api/auth', (req, res, next) => {
   if (req.method !== 'POST') return next()
   const ip = req.ip || 'unknown'
   const now = Date.now()
-  const window = 15 * 60 * 1000
-  const list = (attempts.get(ip) || []).filter((t) => now - t < window)
+  const list = (attempts.get(ip) || []).filter((t) => now - t < WINDOW)
   if (list.length >= 20) {
     return res.status(429).json({ error: 'Забагато спроб — зачекайте чверть години' })
   }
   list.push(now)
   attempts.set(ip, list)
+  // Прибирання за собою: інакше запис лишався на кожен IP, що колись сюди
+  // заходив, і Map росла весь час роботи процесу, хоч спроби давно застаріли.
+  if (attempts.size > 500) {
+    for (const [key, times] of attempts) {
+      if (times.every((t) => now - t >= WINDOW)) attempts.delete(key)
+    }
+  }
   next()
 })
 

@@ -21,24 +21,38 @@
 
 const mm = (v) => Math.round(v * 1000) / 1000
 
+// Число з форми, яким можна рахувати гроші. Порожнє поле, кома замість
+// точки, літера, нескінченність — усе це приходить сюди регулярно, і жодне
+// з них не має права стати ціною: один NaN розходиться по всьому рахунку, і
+// замість «недосіяно 2,1 га» людина бачить «недосіяно NaN га».
+const good = (v) => {
+  const n = Number(v)
+  return Number.isFinite(n) && n > 0 ? n : 0
+}
+
 export function economics(plan, result, {
   yieldPerHa,      // т/га
   pricePerTon,     // ₴/т
   passes,          // обробок за сезон — для машин, що не задали своє число
   damagePct = 70,  // скільки врожаю гине на витоптаному, %
   tyreWidth,       // стара коротка форма на одну машину
-}) {
-  if (!plan || plan.tooSmall || !result?.ok) return null
-  if (!(yieldPerHa > 0) || !(pricePerTon > 0)) return null
+} = {}) {
+  if (!plan || plan.tooSmall || plan.tooBig || !result?.ok) return null
+  const yieldHa = good(yieldPerHa)
+  const price = good(pricePerTon)
+  if (!yieldHa || !price) return null
 
-  const perHa = yieldPerHa * pricePerTon        // ₴ з гектара
-  const damage = Math.min(Math.max(damagePct, 0), 100) / 100
+  const perHa = yieldHa * price                 // ₴ з гектара
+  // Частка втрат поза 0–100 — це нуль або сто, а не мінус і не тисяча.
+  // Сміття замість числа означає, що частки не задано, тож беремо типову.
+  const dmg = Number(damagePct)
+  const damage = (Number.isFinite(dmg) ? Math.min(Math.max(dmg, 0), 100) : 70) / 100
 
   // Площа під колесами однієї машини за всі її проходи полем за сезон.
   const machines = (result.machines || []).filter((m) => m.active && m.width > 0)
   const perMachine = machines.map((m) => {
-    const tyre = m.tyreWidth || tyreWidth || 0
-    const seasonPasses = m.passesPerSeason > 0 ? m.passesPerSeason : passes
+    const tyre = good(m.tyreWidth) || good(tyreWidth)
+    const seasonPasses = m.passesPerSeason > 0 ? m.passesPerSeason : good(passes)
     const fieldPasses = Math.ceil(plan.workWidth / m.width)
     // Задня вісь іде слідом передньої, тож толочить та сама смуга — беремо
     // найширшу шину машини, а не суму осей.

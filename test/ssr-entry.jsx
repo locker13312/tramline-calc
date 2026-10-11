@@ -20,7 +20,8 @@ const scenarios = {
   'соняшник, нічого не глушити': {
     ...DEFAULTS, crop: 'sunflower', rows: 12, rowSpacing: 0.7,
     machines: [newMachine('sprayer', { width: 25.2, axles: [{ trackWidth: 2.8, tyreWidth: 0.3 }] })],
-    margin: 0.02,
+    // Запас заданий вручну: 2 см — саме те, що дає колесо в міжрядді 70 см.
+    marginManual: true, margin: 0.02,
   },
 
   'повний парк': {

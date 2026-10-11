@@ -11,12 +11,98 @@
 
 const mm = (v) => Math.round(v * 1000) / 1000
 
+// ── Межі моделі ───────────────────────────────────────────────────────────
+//
+// Вони не про смак і не про недовіру до користувача. Розрахунок крутиться в
+// браузері на кожне натискання у формі, і його обсяг залежить від самих
+// чисел: сошники × проходи циклу × варіанти відступів. Поле 10 000 × 10 000 м
+// давало майже три мільйони проходів — браузер зʼїдав усю памʼять і згасав
+// просто через зайвий нуль у ширині поля.
+//
+// Тому числа поза цими межами — не «велике поле», а описка, і правильна
+// відповідь на неї не підвисання, а речення про те, що саме не так. Самі
+// межі взяті з запасом над усім, що існує: найширша сівалка — 96 сошників,
+// найширша штанга — 60 м, найбільше поле в Україні — кілометри, не десятки.
+export const LIMITS = {
+  coulters: 400,       // сошників на сівалці
+  rowSpacing: 5,       // м між сошниками
+  drillWidth: 60,      // м захвату сівалки
+  machineWidth: 120,   // м захвату машини
+  rhythm: 24,          // проходів сівалки в циклі
+  fieldSide: 20000,    // м сторона поля
+  fieldPasses: 4000,   // проходів сівалки на одне поле
+  machines: 10,        // машин на одній колії
+  margin: 2,           // м запасу з кожного боку смуги
+  // Скільки разів підбір відступів має право оцінити варіант. Повний перебір
+  // росте як машини × варіанти × смуги: двадцять машин давали мільярди
+  // оцінок і підвисання на кожному натисканні. Бюджет не псує відповідь —
+  // відступи рухаються лише на покращення, тож обірваний пошук дає гірший
+  // варіант, але не хибний.
+  searchEvals: 60000,
+}
+
+// ── Запас з кожного боку смуги ────────────────────────────────────────────
+//
+// Колесо ніколи не йде точно там, де його намалювали: підрулювання, знос
+// керма, схил, люфт зчіпки. Тому смуга під колесом береться ширшою за шину —
+// на запас з кожного боку, і саме через нього сошник на межі або глухне, або
+// лишається сіяти.
+//
+// Скільки саме, вирішує або система, або господар. Десять сантиметрів — те,
+// з чим система працює сама: покриває звичайне підрулювання й не глушить
+// сошник там, де його можна лишити. Але під GPS-підрулюванням запас зводять
+// до нуля, а на схилі чи з причіпною бочкою беруть більшим — і це рішення
+// господаря, не наше. Тому в формі прапорець: або запас задає система, або
+// людина вводить свій.
+export const AUTO_MARGIN = 0.1
+
+// Запас, з яким справді рахує програма.
+//
+// `marginManual` — прапорець із форми. У комплектах, записаних до того, як
+// прапорець зʼявився, його немає, і рішення читається з самого числа: хто
+// задавав запас вручну, той і лишив його не таким, як бере система.
+export function resolveMargin(input) {
+  const v = Number(input?.margin)
+  const own = Number.isFinite(v) && v >= 0
+  const manual = input?.marginManual ?? (own && Math.abs(v - AUTO_MARGIN) > 1e-9)
+  if (!manual) return AUTO_MARGIN
+  // Заданий вручну запас береться як є — навіть нуль: під GPS-підрулюванням
+  // це робоче значення. Сміття замість числа запасом не вважається.
+  return own ? Math.min(v, LIMITS.margin) : AUTO_MARGIN
+}
+
+// Позиції з довільної розкладки — або null, якщо її немає чи в ній не
+// лишилося й двох справжніх чисел.
+//
+// «а, б, в» — це не розкладка, а друкарська помилка, і єдина чесна відповідь
+// на неї — повернутись до рівномірної сівалки. Раніше такий список давав
+// нуль сошників при живому захваті: програма рахувала колію на сівалці, у
+// якої немає жодного сошника, і видавала «глушити нічого» з NaN у відсотках.
+function customOffsets(coulters) {
+  if (!Array.isArray(coulters) || coulters.length < 2) return null
+  const list = coulters
+    .slice(0, LIMITS.coulters)
+    .map(Number)
+    .filter((v) => Number.isFinite(v) && v >= 0)
+    .sort((a, b) => a - b)
+  return list.length >= 2 ? list : null
+}
+
+// Рівномірна розкладка: сошник через кожне міжряддя, перший на півміжрядді
+// від краю рами.
+//
+// Межу тримаємо й тут, а не лише в перевірці вище: функція експортована, і
+// ніхто не має змоги попросити в неї мільйон сошників.
+function evenOffsets(rows, rowSpacing) {
+  const n = Math.round(Number(rows))
+  const s = Number(rowSpacing)
+  if (!Number.isFinite(n) || n <= 0 || !Number.isFinite(s) || s <= 0) return []
+  return Array.from({ length: Math.min(n, LIMITS.coulters) }, (_, i) => mm((i + 0.5) * s))
+}
+
 // Позиції сошників від лівого краю проходу, у метрах.
-export function coulterOffsets({ rows, rowSpacing, coulters }) {
-  if (Array.isArray(coulters) && coulters.length >= 2) {
-    return coulters.map(Number).filter((v) => Number.isFinite(v) && v >= 0).sort((a, b) => a - b)
-  }
-  return Array.from({ length: Math.max(0, Math.round(rows)) }, (_, i) => mm((i + 0.5) * rowSpacing))
+export function coulterOffsets(input) {
+  return customOffsets(input?.coulters) ?? evenOffsets(input?.rows, input?.rowSpacing)
 }
 
 // Захват сівалки.
@@ -31,13 +117,34 @@ export function coulterOffsets({ rows, rowSpacing, coulters }) {
 // прилиплим: задав 2,4 м для своєї розкладки, повернувся до рівномірної — і
 // захват усе одно 2,4 м, хоч секції з міжряддям кажуть інше.
 export function drillGeometry(input) {
-  const offsets = coulterOffsets(input)
-  const custom = Array.isArray(input.coulters) && input.coulters.length >= 2
-  const explicit = Number(input.drillWidth)
-  const width = custom
-    ? (explicit > 0 ? mm(explicit) : mm(offsets.at(-1) + offsets[0]))
-    : mm((Math.round(input.rows) || 0) * input.rowSpacing)
-  return { offsets, width, rows: offsets.length, custom: custom && offsets.length > 0 }
+  const custom = customOffsets(input?.coulters)
+  const offsets = custom ?? evenOffsets(input?.rows, input?.rowSpacing)
+  const explicit = Number(input?.drillWidth)
+  const spacing = Number(input?.rowSpacing)
+  const rows = Math.round(Number(input?.rows))
+
+  let width
+  if (custom) {
+    width = Number.isFinite(explicit) && explicit > 0
+      ? mm(explicit)
+      : mm(custom.at(-1) + custom[0])
+  } else if (offsets.length > 0) {
+    width = mm(offsets.length * spacing)
+  } else {
+    width = 0
+  }
+
+  return {
+    offsets, width,
+    rows: offsets.length,
+    custom: custom != null,
+    // Скільком сошникам не знайшлося місця в розрахунку: список обрізаний по
+    // межі моделі, і про це має бути сказано, а не «порахувалося».
+    overflow: Math.max(
+      0,
+      (custom ? input.coulters.length : (Number.isFinite(rows) ? rows : 0)) - LIMITS.coulters,
+    ),
+  }
 }
 
 // Найменше міжряддя в розкладці — саме воно вирішує, чи може колесо взагалі
@@ -52,11 +159,24 @@ export function minGap(offsets) {
 // вона тільки нарізається, — але слід трактора лягає на кожному проході, і
 // на ньому ґрунт ущільнений. Деякі господарства глушать сошники, що йдуть
 // просто по цьому сліду: зерно в ущільненому сліді сходить гірше.
-export function tractorBands({ trackWidth, tyreWidth, margin = 0.1 }, drillWidthValue) {
-  if (!(trackWidth > 0) || !(tyreWidth > 0) || !(drillWidthValue > 0)) return []
+export function tractorBands(tractor, drillWidthValue) {
+  const t = tractor && typeof tractor === 'object' ? tractor : {}
+  const trackWidth = Number(t.trackWidth)
+  const tyreWidth = Number(t.tyreWidth)
+  const W = Number(drillWidthValue)
+  // Запас сюди приходить і з форми, і з машини, тож нечислове значення тут
+  // не дивина — дивина пустити його далі: NaN у межах смуги не глушив нічого
+  // й малював на схемі смугу нізвідки нікуди.
+  const m = Number(t.margin)
+  const margin = Number.isFinite(m) && m >= 0 ? Math.min(m, LIMITS.margin) : AUTO_MARGIN
+
+  if (!Number.isFinite(trackWidth) || !(trackWidth > 0)) return []
+  if (!Number.isFinite(tyreWidth) || !(tyreWidth > 0)) return []
+  if (!Number.isFinite(W) || !(W > 0)) return []
+
   const half = tyreWidth / 2 + margin
   return [-1, 1].map((sign) => {
-    const centre = drillWidthValue / 2 + sign * trackWidth / 2
+    const centre = W / 2 + sign * trackWidth / 2
     return { centre: mm(centre), from: mm(centre - half), to: mm(centre + half) }
   })
 }
