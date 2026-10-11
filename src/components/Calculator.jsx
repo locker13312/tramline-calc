@@ -1,9 +1,10 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { computeTramlines, fieldPlan, suggestTracks, coulterOffsets } from '../lib/tramline'
+import { computeTramlines, fieldPlan, suggestTracks, coulterOffsets, AUTO_MARGIN } from '../lib/tramline'
 import { economics } from '../lib/economics'
 import { CROPS, CHASSIS_PRESETS } from '../lib/presets'
 import { defaultMachines } from '../lib/machines'
 import { num, plural, rangeText } from '../lib/format'
+import NumField from './NumField'
 import Verdict from './Verdict'
 import { TrackAdvice } from './Advice'
 import MachineList from './MachineList'
@@ -14,25 +15,34 @@ import PassPlan from './PassPlan'
 import PassList from './PassList'
 import Money from './Money'
 
-// Розділи налаштувань. «Машини» першими не стоять навмисно: сівалку задають
-// раз і від неї залежить усе інше, тож із неї й починають.
-const SECTIONS = [
-  { key: 'drill', label: 'Сівалка' },
-  { key: 'machines', label: 'Машини' },
-  { key: 'field', label: 'Поле' },
-  { key: 'money', label: 'Гроші' },
-]
+// Чому відповіді немає — одним рядком. Раніше інтерфейс вгадував це сам, по
+// списку машин, і на порожній сівалці писав «захват головної машини не
+// ділиться на захват сівалки», хоч сівалки не було зовсім. Тепер причину
+// каже розрахунок, а тут лише її назва.
+const FAIL_LINE = {
+  drill: 'Спочатку задайте сівалку — сошники й міжряддя',
+  machines: 'Немає ні однієї машини, під яку різати колію',
+  ratio: 'Захват головної машини не ділиться на захват сівалки',
+}
 
-// Сам розрахунок: форма ліворуч, відповідь і докази праворуч. Живе окремо
-// від оболонки, бо оболонка має ще вкладки, акаунт і довідник.
-// initialSection — з якого розділу відкрити форму. Потрібне перевірці
-// рендером: вона малює всі чотири, щоб жоден не ламався непоміченим.
-export default function Calculator({ input, setInput, initialSection = 'drill' }) {
-  const [section, setSection] = useState(initialSection)
+// Сам розрахунок: відповідь угорі на всю ширину, під нею форма ліворуч і
+// докази праворуч. Який саме розділ форми показати, вирішує сайдбар — там
+// стоять і вкладки, і розділи, бо це одне й те саме меню.
+//
+// initialSection — з якого розділу відкрити форму, коли нею ніхто не керує
+// ззовні. Потрібне перевірці рендером: вона малює всі чотири, щоб жоден не
+// ламався непоміченим.
+export default function Calculator({
+  input, setInput, initialSection = 'drill', section: outer, setSection: setOuter,
+}) {
+  const [own, setOwn] = useState(initialSection)
+  const section = outer ?? own
+  const setSection = setOuter ?? setOwn
   const headline = useRef(null)
   const set = (k, v) => setInput((s) => ({ ...s, [k]: v }))
-  // onNum, а не num: num з lib/format форматує числа для показу.
-  const onNum = (k) => (e) => set(k, Number(e.target.value))
+  // Числові поля ходять через NumField: стерте поле лишається стертим, а не
+  // стає нулем, у який потім дописують цифри.
+  const onNum = (k) => (v) => set(k, v)
 
   // Порожній список лишається порожнім: якщо людина видалила всі машини, вона
   // має побачити чесне «нема під що різати колію», а не три машини, що самі
@@ -93,53 +103,26 @@ export default function Calculator({ input, setInput, initialSection = 'drill' }
     <>
       <StickyAnswer result={result} watch={headline} />
 
-      <div className="headline" ref={headline}>
-        {result.ok
-          ? <Verdict result={result} />
-          : (
-            <div className="verdict is-bad">
-              <div className="verdict-kicker">колія не складеться</div>
-              <div className="verdict-line">
-                {result.machines?.some((m) => m.active)
-                  ? 'Захват головної машини не ділиться на захват сівалки'
-                  : 'Немає ні однієї машини, під яку різати колію'}
+      <main className="main">
+        <div className="headline" ref={headline}>
+          {result.ok
+            ? <Verdict result={result} />
+            : (
+              <div className="verdict is-bad">
+                <div className="verdict-kicker">
+                  {result.fail === 'drill' ? 'бракує даних' : 'колія не складеться'}
+                </div>
+                <div className="verdict-line">{FAIL_LINE[result.fail] ?? FAIL_LINE.ratio}</div>
+                <div className="verdict-sub">{result.warnings[0]}</div>
               </div>
-              <div className="verdict-sub">{result.warnings[0]}</div>
-            </div>
-          )}
-        {result.warnings.slice(result.ok ? 0 : 1).map((w, i) => (
-          <p key={i} className="warn">{w}</p>
-        ))}
-      </div>
+            )}
+          {result.warnings.slice(result.ok ? 0 : 1).map((w, i) => (
+            <p key={i} className="warn">{w}</p>
+          ))}
+        </div>
 
-      <div className="cols">
+        <div className="cols">
         <form className="form" onSubmit={(e) => e.preventDefault()}>
-          {/* Розділи налаштувань перемикаються, а не стоять один під одним.
-              Форма виросла до чотирьох панелей, і «поле» з «грошима»
-              опинялися під списком машин — щоб їх побачити, треба було
-              прокрутити всю сторінку. Тепер будь-який розділ за одне
-              натискання, і форма завжди в один екран. */}
-          <div className="fnav" role="tablist" aria-label="Розділи налаштувань">
-            {SECTIONS.map((s) => (
-              <button
-                key={s.key} type="button" role="tab"
-                aria-selected={section === s.key}
-                className={`fnav-b${section === s.key ? ' is-on' : ''}`}
-                onClick={() => setSection(s.key)}
-              >
-                {s.label}
-                {/* Лічильник показує машини, які справді в колії, а не
-                    просто ввімкнені: незаповнена в розрахунок не йде, і
-                    видавати її за робочу не можна. */}
-                {s.key === 'machines' && (
-                  <i className="fnav-n">
-                    {(result.machines ?? []).filter((m) => m.active).length}
-                  </i>
-                )}
-              </button>
-            ))}
-          </div>
-
           {section === 'drill' && (
             <Drill
               input={input} set={set} onNum={onNum}
@@ -159,23 +142,23 @@ export default function Calculator({ input, setInput, initialSection = 'drill' }
             <div className="duo">
               <label>
                 Ширина, м
-                <input type="number" min="1" step="10" value={input.fieldWidth} onChange={onNum('fieldWidth')} />
+                <NumField min="1" step="10" value={input.fieldWidth} onValue={onNum('fieldWidth')} />
               </label>
               <label>
                 Довжина, м
-                <input type="number" min="1" step="10" value={input.fieldLength} onChange={onNum('fieldLength')} />
+                <NumField min="1" step="10" value={input.fieldLength} onValue={onNum('fieldLength')} />
               </label>
             </div>
 
             <label>
               Обсів по периметру, м
-              <input type="number" min="0" step="1" value={input.headland} onChange={onNum('headland')} />
+              <NumField min="0" step="1" value={input.headland} onValue={onNum('headland')} />
             </label>
             <p className="note">Смуга для розворотів. Зазвичай два-три заходи обприскувача.</p>
 
             <div className="derived">
-              поле {num((input.fieldWidth * input.fieldLength) / 10000, 1)} га
-              {plan && !plan.tooSmall && ` · робочої ${num(plan.workingHa, 1)} га`}
+              поле {num(((input.fieldWidth || 0) * (input.fieldLength || 0)) / 10000, 1)} га
+              {plan && !plan.tooSmall && !plan.tooBig && ` · робочої ${num(plan.workingHa, 1)} га`}
             </div>
           </div>
           )}
@@ -187,22 +170,22 @@ export default function Calculator({ input, setInput, initialSection = 'drill' }
             <div className="duo">
               <label>
                 Врожайність, т/га
-                <input type="number" min="0" step="0.1" value={input.yieldPerHa} onChange={onNum('yieldPerHa')} />
+                <NumField min="0" step="0.1" value={input.yieldPerHa} onValue={onNum('yieldPerHa')} />
               </label>
               <label>
                 Ціна, ₴/т
-                <input type="number" min="0" step="100" value={input.pricePerTon} onChange={onNum('pricePerTon')} />
+                <NumField min="0" step="100" value={input.pricePerTon} onValue={onNum('pricePerTon')} />
               </label>
             </div>
 
             <div className="duo">
               <label>
                 Проходів за сезон
-                <input type="number" min="0" step="1" value={input.passes} onChange={onNum('passes')} />
+                <NumField min="0" step="1" value={input.passes} onValue={onNum('passes')} />
               </label>
               <label>
                 Гине під колесом, %
-                <input type="number" min="0" max="100" step="5" value={input.damagePct} onChange={onNum('damagePct')} />
+                <NumField min="0" max="100" step="5" value={input.damagePct} onValue={onNum('damagePct')} />
               </label>
             </div>
             <p className="note" style={{ marginBottom: 0 }}>
@@ -226,7 +209,7 @@ export default function Calculator({ input, setInput, initialSection = 'drill' }
             />
           )}
 
-          {result.ok && plan && !plan.tooSmall && (
+          {result.ok && plan && !plan.tooSmall && !plan.tooBig && (
             <div className="figures">
               <Figure k="Колій на полі" v={String(plan.tramlines)}
                 s={`крок ${num(result.baseWidth)} м`} />
@@ -243,8 +226,17 @@ export default function Calculator({ input, setInput, initialSection = 'drill' }
 
           {plan?.tooSmall && (
             <p className="warn">
-              Обсів {num(plan.headland)} м з'їдає поле цілком — на робочу частину
+              Обсів {num(plan.headland)} м зʼїдає поле цілком — на робочу частину
               не лишається місця навіть під один прохід сівалки.
+            </p>
+          )}
+
+          {plan?.tooBig && (
+            <p className="warn">
+              Поле {num(plan.fieldWidth)} × {num(plan.fieldLength)} м — це{' '}
+              {plan.passesNeeded} проходів сівалки. Стільки програма не рахує:
+              найбільша сторона — {plan.maxSide} м. Перевірте, чи не зайвий нуль
+              у розмірі; відповідь про цикл і сошники вище від поля не залежить.
             </p>
           )}
 
@@ -260,7 +252,7 @@ export default function Calculator({ input, setInput, initialSection = 'drill' }
                 custom={result.custom}
               />
 
-              {plan && !plan.tooSmall && (
+              {plan && !plan.tooSmall && !plan.tooBig && (
                 <div className="panel">
                   <h2>поле згори</h2>
                   <FieldPlan plan={plan} result={result} />
@@ -283,7 +275,14 @@ export default function Calculator({ input, setInput, initialSection = 'drill' }
             </>
           )}
         </div>
-      </div>
+        </div>
+
+        <footer className="foot">
+          Усі машини заходять у поле з одного краю; сошники рахуються зліва
+          направо за напрямком руху. Розрахунок одновимірний — рельєф, клини й
+          нерівні межі поля він не враховує.
+        </footer>
+      </main>
     </>
   )
 }
@@ -329,6 +328,25 @@ function Drill({ input, set, onNum, pickCrop, result, tractor, setTractor }) {
     set('coulters', list.length >= 2 ? list : null)
   }
 
+  // Чи стоять у формі ще ті числа, що в пресеті культури. Якщо ні — у полі
+  // «культура» має бути «своє», а не назва, до якої ці числа вже не мають
+  // стосунку.
+  const pickedCrop = CROPS.find((c) => c.key === input.crop)
+  const cropValue = pickedCrop
+    && Number(input.rowSpacing) === pickedCrop.rowSpacing
+    && Number(input.rows) === pickedCrop.rows
+    && !(Array.isArray(input.coulters) && input.coulters.length >= 2)
+    ? pickedCrop.key
+    : 'custom'
+
+  // Запас задає або система, або господар. Прапорця могло не бути в
+  // збереженій формі — тоді про рішення говорить саме число.
+  const manual = input.marginManual
+    ?? (Number.isFinite(Number(input.margin)) && Math.abs(Number(input.margin) - AUTO_MARGIN) > 1e-9)
+  const marginNow = manual && Number.isFinite(Number(input.margin))
+    ? Number(input.margin)
+    : AUTO_MARGIN
+
   return (
     <div className="panel">
       <h2>сівалка</h2>
@@ -336,9 +354,22 @@ function Drill({ input, set, onNum, pickCrop, result, tractor, setTractor }) {
       <label>
         Культура
         {/* Вибір культури скидає й свою розкладку — інакше у полі лишався б
-            набраний текст, якого розрахунок уже не бере. */}
-        <select value={input.crop} onChange={(e) => { pickCrop(e.target.value); toEven() }}>
+            набраний текст, якого розрахунок уже не бере.
+            «Своє» — не варіант на вибір, а чесна назва стану: щойно людина
+            змінила міжряддя чи кількість сошників, у полі стоять уже не ті
+            числа, що в пресеті, і показувати «Пшениця» означало б брехати. */}
+        <select
+          value={cropValue}
+          onChange={(e) => {
+            // «Своє» нічого не підставляє й нічого не скидає: це стан, а не
+            // дія. Інакше вибір цього рядка стирав би набрану розкладку.
+            if (e.target.value === 'custom') return
+            pickCrop(e.target.value)
+            toEven()
+          }}
+        >
           {CROPS.map((c) => <option key={c.key} value={c.key}>{c.label}</option>)}
+          <option value="custom">Своє міжряддя й сошники</option>
         </select>
       </label>
 
@@ -347,14 +378,14 @@ function Drill({ input, set, onNum, pickCrop, result, tractor, setTractor }) {
           <div className="duo">
             <label>
               Сошників
-              <input type="number" min="2" step="1" value={input.rows} onChange={onNum('rows')} />
+              <NumField min="2" step="1" value={input.rows} onValue={onNum('rows')} />
             </label>
             <label>
               Міжряддя, м
-              <input type="number" min="0.05" step="0.05" value={input.rowSpacing} onChange={onNum('rowSpacing')} />
+              <NumField min="0.05" step="0.05" value={input.rowSpacing} onValue={onNum('rowSpacing')} />
             </label>
           </div>
-          <div className="derived">захват {num(input.rows * input.rowSpacing)} м</div>
+          <div className="derived">захват {num(result.drillWidth)} м</div>
           <button type="button" className="mlink mlink-block" onClick={toCustom}>
             розкладка сошників не рівномірна
           </button>
@@ -371,7 +402,7 @@ function Drill({ input, set, onNum, pickCrop, result, tractor, setTractor }) {
               стільки й після останнього. Якщо це не так — задайте захват нижче.
             </p>
           ) : (
-            <p className="note" style={{ color: 'var(--warn)' }}>
+            <p className="note is-warn">
               Потрібно щонайменше дві позиції. Поки їх менше, розрахунок бере
               рівномірну сівалку — {input.rows} × {num(input.rowSpacing)} м.
             </p>
@@ -379,14 +410,14 @@ function Drill({ input, set, onNum, pickCrop, result, tractor, setTractor }) {
           <div className="duo">
             <label>
               Захват, м
-              <input type="number" min="0.5" step="0.1"
-                value={input.drillWidth ?? ''}
+              <NumField min="0.5" step="0.1"
+                value={input.drillWidth}
                 placeholder={num(result.drillWidth)}
-                onChange={(e) => set('drillWidth', e.target.value === '' ? null : Number(e.target.value))} />
+                onValue={(v) => set('drillWidth', v)} />
             </label>
             <label>
               Міжряддя, м
-              <input type="number" min="0.05" step="0.05" value={input.rowSpacing} onChange={onNum('rowSpacing')} />
+              <NumField min="0.05" step="0.05" value={input.rowSpacing} onValue={onNum('rowSpacing')} />
             </label>
           </div>
           <div className="derived">
@@ -400,15 +431,41 @@ function Drill({ input, set, onNum, pickCrop, result, tractor, setTractor }) {
       )}
 
       <label className="check">
-        <input type="checkbox" checked={input.halfStart}
+        <input type="checkbox" checked={!!input.halfStart}
           onChange={(e) => set('halfStart', e.target.checked)} />
         Перший прохід — половинний
       </label>
 
-      <label style={{ marginTop: 13 }}>
-        Запас на знос керма, м
-        <input type="number" min="0" step="0.05" value={input.margin} onChange={onNum('margin')} />
-      </label>
+      {/* ── Запас ───────────────────────────────────────────────────────
+          Колесо не йде там, де його намалювали, тому смуга береться ширшою
+          за шину. Скільком саме бути запасу — рішення господаря: під
+          GPS-підрулюванням нуль, на схилі більше. Тому не просто поле, а
+          прапорець: або рахує система, або людина вводить своє. */}
+      <div className="maxle">
+        <div className="maxle-h">запас з кожного боку смуги</div>
+        <label className="check">
+          <input type="checkbox" checked={!!manual}
+            onChange={(e) => set('marginManual', e.target.checked)} />
+          Задати запас самому
+        </label>
+        <label className={manual ? undefined : 'is-muted'}>
+          Запас, м
+          <NumField min="0" max="2" step="0.05"
+            value={manual ? input.margin : null}
+            disabled={!manual}
+            placeholder={`система бере ${num(AUTO_MARGIN)}`}
+            onValue={(v) => set('margin', v)} />
+        </label>
+        <div className="derived">
+          смуга під колесом = шина + 2 × {num(marginNow)} м
+          {!manual && ' (рахує система)'}
+        </div>
+        <p className="note" style={{ margin: '0 0 10px' }}>
+          Підрулювання, знос керма, схил, люфт зчіпки — колесо щоразу трохи
+          не там. Більший запас глушить більше сошників, але не дає колесу
+          стати на рядок. Під точним підрулюванням запас зводять до нуля.
+        </p>
+      </div>
 
       <div className="maxle">
         <div className="maxle-h">трактор сівалки</div>
@@ -425,13 +482,13 @@ function Drill({ input, set, onNum, pickCrop, result, tractor, setTractor }) {
         <div className="duo">
           <label>
             Між колесами, м
-            <input type="number" min="0" step="0.05" value={tractor.trackWidth ?? ''}
-              onChange={(e) => setTractor({ trackWidth: Number(e.target.value) })} />
+            <NumField min="0" step="0.05" value={tractor.trackWidth}
+              onValue={(v) => setTractor({ trackWidth: v })} />
           </label>
           <label>
             Шина, м
-            <input type="number" min="0" step="0.01" value={tractor.tyreWidth ?? ''}
-              onChange={(e) => setTractor({ tyreWidth: Number(e.target.value) })} />
+            <NumField min="0" step="0.01" value={tractor.tyreWidth}
+              onValue={(v) => setTractor({ tyreWidth: v })} />
           </label>
         </div>
         <label className="check">
@@ -546,6 +603,7 @@ function Fixes({ s, rowSpacing, rows, boomWidth, onPick }) {
                     : `сівалка ${o.rows} ${plural(o.rows, 'сошник', 'сошники', 'сошників')} із ${rows} (заглушити ${o.off} з краю), ${o.k} прох.`}
                   {' · '}перекриття {num(o.overlap)} м ({num(o.overlapPct, 0)} %)
                 </span>
+                <span className="opt-go" aria-hidden="true">підставити →</span>
               </button>
             ))}
           </div>
@@ -571,6 +629,7 @@ function Fixes({ s, rowSpacing, rows, boomWidth, onPick }) {
               >
                 <span className="opt-v">{o.rows} сошників</span>
                 <span className="opt-t">× {num(rowSpacing)} м = {num(o.width)} м, {o.k} прох.</span>
+                <span className="opt-go" aria-hidden="true">підставити →</span>
               </button>
             ))}
           </div>

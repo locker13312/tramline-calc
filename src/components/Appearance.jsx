@@ -1,50 +1,20 @@
 import { useEffect, useRef, useState } from 'react'
+import { THEMES, ACCENTS } from '../lib/look'
+import { SlidersIcon } from './icons'
 
-// ── Тема й колір ──────────────────────────────────────────────────────────
+// ── Налаштування системи: тема й колір ────────────────────────────────────
 //
-// Вибір тут не косметичний. Програму відкривають і за столом при вікні, і в
-// кабіні ввечері, і це різні вимоги до тла: те, що читається на папері,
-// сліпить у темряві, і навпаки. «Авто» бере системну тему й цього більшості
-// досить — але якщо телефон цілий день у світлій темі, а комбайн працює до
-// ночі, вибір мусить бути під рукою.
-//
-// Колір акценту — не примха. Зелений тут означає сходи, та в господарстві
-// може бути свій колір, та й просто видно його не всім однаково. Кольори
-// машин і колір сліду колеса від акценту не залежать: вони щось означають на
-// схемах, і міняти їх під смак не можна.
-
-const THEMES = [
-  { key: 'auto', label: 'авто', title: 'Як у системі' },
-  { key: 'light', label: 'світла', title: 'Світла тема' },
-  { key: 'dark', label: 'темна', title: 'Темна тема' },
-]
-
-const ACCENTS = [
-  { key: 'green', title: 'Зелений' },
-  { key: 'blue', title: 'Синій' },
-  { key: 'teal', title: 'Бірюзовий' },
-  { key: 'violet', title: 'Фіолетовий' },
-  { key: 'slate', title: 'Графіт' },
-]
-
-const KEY = 'tramline_look'
-
-const read = () => {
-  try {
-    const got = JSON.parse(localStorage.getItem(KEY) || '{}')
-    return {
-      theme: THEMES.some((t) => t.key === got.theme) ? got.theme : 'auto',
-      accent: ACCENTS.some((a) => a.key === got.accent) ? got.accent : 'green',
-    }
-  } catch {
-    return { theme: 'auto', accent: 'green' }   // приватний режим
-  }
-}
-
-export default function Appearance() {
-  const [look, setLook] = useState(read)
+// Стан тут не живе — він у App (lib/look.js), бо той самий вибір міняють і
+// швидким перемикачем на рейці. Тут лише саме меню.
+export default function Appearance({ look, setLook }) {
   const [open, setOpen] = useState(false)
+  // Меню стоїть не в потоці сайдбара, а поверх сторінки, і координати в
+  // нього власні. Інакше його не видно зовсім: сайдбар гортається, а все,
+  // що виходить за його межі, прокрутка обрізає — кнопка натискалась, меню
+  // малювалось, і одразу зникало під краєм колонки.
+  const [at, setAt] = useState(null)
   const box = useRef(null)
+  const btn = useRef(null)
 
   // Меню закривається клацанням поза ним і клавішею Escape. Без цього воно
   // висить над сторінкою, поки не натиснеш кнопку вдруге, і на телефоні
@@ -61,40 +31,51 @@ export default function Appearance() {
     }
   }, [open])
 
-  // Тему тримає <html>, а не React: так її бачить і CSS, і смуга браузера.
+  // Меню тримається кнопки: праворуч від неї, а якщо праворуч не влазить —
+  // під нею. Міряємо на відкриття й на зміну розміру вікна.
   useEffect(() => {
-    const root = document.documentElement
-    if (look.theme === 'auto') root.removeAttribute('data-theme')
-    else root.setAttribute('data-theme', look.theme)
-    root.setAttribute('data-accent', look.accent)
-    try { localStorage.setItem(KEY, JSON.stringify(look)) } catch { /* приватний режим */ }
-
-    // Колір смуги браузера на телефоні — під колір тла, інакше над сторінкою
-    // висить шматок чужої теми.
-    const meta = document.querySelector('meta[name="theme-color"]')
-    if (meta) {
-      const bg = getComputedStyle(root).getPropertyValue('--bg').trim()
-      if (bg) meta.setAttribute('content', bg)
+    if (!open) return
+    const place = () => {
+      const r = btn.current?.getBoundingClientRect()
+      if (!r) return
+      const W = 260
+      const right = r.right + 8
+      const fits = right + W <= window.innerWidth - 8
+      setAt({
+        left: fits ? right : Math.max(8, Math.min(r.left, window.innerWidth - W - 8)),
+        top: fits
+          ? Math.max(8, Math.min(r.top - 6, window.innerHeight - 300))
+          : r.bottom + 8,
+      })
     }
-  }, [look])
+    place()
+    window.addEventListener('resize', place)
+    window.addEventListener('scroll', place, true)
+    return () => {
+      window.removeEventListener('resize', place)
+      window.removeEventListener('scroll', place, true)
+    }
+  }, [open])
 
   const current = ACCENTS.find((a) => a.key === look.accent)
 
   return (
     <div className="look" ref={box}>
       <button
+        ref={btn}
         type="button"
-        className="look-open"
+        className={`side-b${open ? ' is-on' : ''}`}
         aria-expanded={open}
-        title="Тема й колір"
+        title="Тема й колір системи"
         onClick={() => setOpen((v) => !v)}
       >
-        <span className="look-dot" aria-hidden="true" />
-        <span className="look-open-t">вигляд</span>
+        <SlidersIcon className="side-i" />
+        <span className="side-b-t">Вигляд</span>
       </button>
 
       {open && (
-        <div className="look-pop" role="group" aria-label="Тема й колір">
+        <div className="look-pop" role="group" aria-label="Тема й колір"
+          style={at ? { left: at.left, top: at.top } : undefined}>
           <div className="look-row">
             <span className="look-k">тема</span>
             <div className="look-seg">
@@ -112,9 +93,9 @@ export default function Appearance() {
           </div>
 
           <div className="look-row">
-            <span className="look-k">колір</span>
             {/* Назва поточного кольору словом: самого кружечка мало, коли
                 кольори близькі або людина їх розрізняє не так, як ми. */}
+            <span className="look-k">колір</span>
             <span className="look-now">{current?.title}</span>
           </div>
 

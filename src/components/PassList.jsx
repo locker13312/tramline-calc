@@ -13,7 +13,7 @@ import { rangeText, num, plural } from '../lib/format'
 // там, де телефон уже сів.
 export default function PassList({ plan, rowSpacing, custom }) {
   const [onlyTramlines, setOnlyTramlines] = useState(false)
-  if (!plan || plan.tooSmall || !plan.passes?.length) return null
+  if (!plan || plan.tooSmall || plan.tooBig || !plan.passes?.length) return null
 
   const passes = plan.passes
   const tramlinePasses = passes.filter((p) => p.tramline)
@@ -30,7 +30,9 @@ export default function PassList({ plan, rowSpacing, custom }) {
         Рахунок іде від того краю поля, з якого заходить сівалка. Колію нарізають{' '}
         {tramlinePasses.length}{' '}
         {plural(tramlinePasses.length, 'прохід', 'проходи', 'проходів')} із{' '}
-        {passes.length}; на решті сіють усіма сошниками.
+        {passes.length}; на решті сіють усіма сошниками. Під кожним номером
+        сошників написано, через яку машину вони глухнуть — саме цими смугами
+        вона потім і поїде, від обробок до жнив.
       </p>
 
       <div className="strip" role="list" aria-label="Усі проходи сівалки">
@@ -87,6 +89,17 @@ export default function PassList({ plan, rowSpacing, custom }) {
                     <span className="pt-out">
                       {p.tramline ? ' + ' : ''}
                       {rangeText(p.outside)} — за межею поля
+                    </span>
+                  )}
+                  {/* Через кого саме глухне сошник. На жнивах це головне
+                      питання до списку: по цій смузі поїде комбайн чи
+                      перевантажувач — і якщо ні, то колію різали не під
+                      нього. Номери без машин відповіді на це не дають. */}
+                  {p.tramline && p.reasons?.length > 0 && (
+                    <span className="pt-for">
+                      {p.reasons.map((x) => (
+                        `${x.label.toLowerCase()} — ${rangeText(x.rows)}`
+                      )).join(' · ')}
                     </span>
                   )}
                 </td>

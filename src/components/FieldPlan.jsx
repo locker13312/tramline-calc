@@ -15,7 +15,10 @@ import { num, plural } from '../lib/format'
 // SVG масштабується під ширину колонки, і текст усередині нього зменшувався б
 // разом із полем до нечитабельного.
 export default function FieldPlan({ plan, result }) {
-  if (!plan || plan.tooSmall) return null
+  // tooSmall і tooBig — відмови, а не плани: у них немає ні проходів, ні
+  // колій, і малювати тут нічого. Перевірка стоїть і тут, і в того, хто
+  // викликає: карта не має права впасти через поле, якого не буває.
+  if (!plan || plan.tooSmall || plan.tooBig) return null
 
   const { fieldWidth: FW, fieldLength: FL, headland: H } = plan
   const S = result.baseWidth

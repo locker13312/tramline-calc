@@ -1,26 +1,37 @@
 import { useEffect, useState } from 'react'
-import { DEFAULTS } from './lib/presets'
-import { drillGeometry } from './lib/tramline'
+import { CROPS, DEFAULTS } from './lib/presets'
+import { defaultMachines, normaliseMachines } from './lib/machines'
+import { drillGeometry, resolveMargin, AUTO_MARGIN } from './lib/tramline'
 import { api, token } from './lib/api'
+import { num } from './lib/format'
 import Calculator from './components/Calculator'
 import AuthPanel from './components/AuthPanel'
 import Saved from './components/Saved'
 import RhythmTable from './components/RhythmTable'
-import Appearance from './components/Appearance'
+import Sidebar from './components/Sidebar'
+import { useLook } from './lib/look'
 
 const STORE = 'tramline_input'
 
-function Mark({ size = 34 }) {
+// Знак програми — те, що вона рахує, а не абстракція: сходи рядками, а
+// посередині колія. Колія тут не одна смуга, а розрив у сходах, у якому
+// лежать два сліди коліс, — бо саме так вона й виглядає на полі, і саме
+// пару смуг, а не лінію, програма й розставляє.
+function Mark({ size = 38 }) {
+  const rows = [2.5, 7, 11.5, 26.5, 31, 35.5]
   return (
-    <svg width={size} height={size} viewBox="0 0 32 32" aria-hidden="true">
-      <rect width="32" height="32" rx="7" fill="#1d2416" />
-      <g fill="#8ec463">
-        <rect x="3" y="6" width="3" height="20" rx="1.5" />
-        <rect x="9" y="6" width="3" height="20" rx="1.5" />
-        <rect x="20" y="6" width="3" height="20" rx="1.5" />
-        <rect x="26" y="6" width="3" height="20" rx="1.5" />
+    <svg width={size} height={size} viewBox="0 0 38 38" aria-hidden="true"
+      className="mark" role="img">
+      <rect width="38" height="38" rx="9" fill="var(--mark-bg)" />
+      {/* Сходи: рядки по всьому проходу, однакові й щільні. */}
+      <g fill="var(--mark-row)">
+        {rows.map((x) => <rect key={x} x={x} y="6" width="2.4" height="26" rx="1.2" />)}
       </g>
-      <rect x="14.5" y="4" width="3" height="24" rx="1.5" fill="#c4593f" />
+      {/* Колія: порожня смуга між сходами, у ній два сліди коліс. */}
+      <g fill="var(--mark-track)">
+        <rect x="16.4" y="4" width="2" height="30" rx="1" />
+        <rect x="21.4" y="4" width="2" height="30" rx="1" />
+      </g>
     </svg>
   )
 }
@@ -49,13 +60,6 @@ function Intro() {
   )
 }
 
-const TABS = [
-  { key: 'calc', label: 'Розрахунок' },
-  { key: 'fields', label: 'Мої поля', needsAuth: true },
-  { key: 'machines', label: 'Техніка', needsAuth: true },
-  { key: 'rhythms', label: 'Довідник' },
-]
-
 // startTab — з якої вкладки відкритися. Потрібне перевірці рендером: вона
 // малює оболонку з кожною вкладкою, щоб жодна не ламалася непоміченою.
 export default function App({ startTab = 'calc' }) {
@@ -71,6 +75,13 @@ export default function App({ startTab = 'calc' }) {
   // Поки токен не перевірено, не показуємо ні «Увійти», ні пошту: інакше
   // на кожному відкритті блимає стан «вийшов», хоча людина не виходила.
   const [checked, setChecked] = useState(false)
+  // Сайдбар на телефоні згорнутий: там він стоїть над відповіддю, і
+  // розгорнутий з'їдав би весь перший екран.
+  const [menu, setMenu] = useState(false)
+  const [look, setLook] = useLook()
+  // Розділ налаштувань живе тут, а не в калькуляторі: перемикають його
+  // пункти сайдбара, а сайдбар той самий на всіх вкладках.
+  const [section, setSection] = useState('drill')
 
   // Розрахунок лишається в браузері навіть без акаунта — калькулятор має
   // працювати одразу, а не після реєстрації.
@@ -111,71 +122,104 @@ export default function App({ startTab = 'calc' }) {
   const lead = (input.machines ?? []).find((m) => m.active !== false)
   const leadWidth = lead?.width ?? input.sprayerWidth
 
+  // Скільки машин справді в колії — число для пункту «Машини». Рахується
+  // нормалізацією списку, без геометрії: це дешево й не залежить від того,
+  // чи складається колія взагалі.
+  const machineCount = normaliseMachines({
+    ...input, machines: input.machines ?? defaultMachines(),
+  }).filter((m) => m.active).length
+
+  // Що зараз задано — чотирма рядками в сайдбарі. Рахується з самих полів
+  // форми, без геометрії: це має показуватись навіть тоді, коли колія не
+  // складається, бо саме тоді й дивляться, що введено не так.
+  const margin = resolveMargin(input)
+  const crop = CROPS.find((c) => c.key === input.crop)
+  const now = [
+    {
+      key: 'drill',
+      label: crop ? crop.label : 'сівалка',
+      value: drill > 0
+        ? `${num(drill)} м · ${input.coulters?.length >= 2 ? 'своя розкладка' : `${num(input.rows, 0)} × ${num(input.rowSpacing)} м`}`
+        : 'не задана',
+    },
+    {
+      key: 'drill',
+      label: 'запас',
+      value: `${num(margin)} м ${margin === AUTO_MARGIN && !input.marginManual ? '· система' : '· свій'}`,
+    },
+    {
+      key: 'machines',
+      label: 'машин у колії',
+      value: machineCount
+        ? `${machineCount} · крок ${leadWidth > 0 ? `${num(leadWidth)} м` : '—'}`
+        : 'жодної',
+    },
+    {
+      key: 'field',
+      label: 'поле',
+      value: input.fieldWidth > 0 && input.fieldLength > 0
+        ? `${num(input.fieldWidth, 0)} × ${num(input.fieldLength, 0)} м · ${num((input.fieldWidth * input.fieldLength) / 10000, 1)} га`
+        : 'не задане',
+    },
+  ]
+
   return (
-    <div className="app">
+    <div className={`app${menu ? ' is-menu' : ''}`}>
       {intro && <Intro />}
-      <header className="top">
-        <Mark />
-        <div className="top-name">
-          <div className="brand">Колія</div>
-          <div className="brand-sub">які сошники глушити, щоб потім було де їздити</div>
-        </div>
-        <div className="top-auth">
-          <Appearance />
-          {checked && (user ? (
-            <>
-              <span className="who" title={user.email}>{user.name || user.email}</span>
-              <button className="btn btn-sm btn-quiet" onClick={logout}>Вийти</button>
-            </>
-          ) : (
-            <button className="btn btn-sm" onClick={() => setTab('fields')}>Увійти</button>
-          ))}
-        </div>
-      </header>
 
-      <nav className="tabs" role="tablist">
-        {TABS.map((t) => (
-          <button
-            key={t.key}
-            role="tab"
-            aria-selected={tab === t.key}
-            className={`tab${tab === t.key ? ' is-on' : ''}`}
-            onClick={() => setTab(t.key)}
-          >
-            {t.label}
-          </button>
-        ))}
-      </nav>
+      <div className="shell">
+        <Sidebar
+          mark={<Mark />}
+          tab={tab} setTab={setTab}
+          section={section} setSection={setSection}
+          machineCount={machineCount} now={now}
+          user={user} checked={checked}
+          onAccount={() => { setTab('fields'); setMenu(false) }}
+          onLogout={logout}
+          look={look} setLook={setLook}
+          menu={menu} setMenu={setMenu}
+        />
 
-      {tab === 'calc' && <Calculator input={input} setInput={setInput} />}
+        {tab === 'calc' ? (
+          <Calculator
+            input={input} setInput={setInput}
+            section={section} setSection={setSection}
+          />
+        ) : (
+          <>
+            <main className="main">
+              {(tab === 'fields' || tab === 'machines') && (
+                user
+                  ? <Saved kind={tab} input={input} onLoad={load} />
+                  : (
+                    <div className="narrow">
+                      <AuthPanel
+                        onAuth={auth}
+                        title={tab === 'fields' ? 'мої поля — потрібен акаунт' : 'техніка — потрібен акаунт'}
+                        lead={
+                          `Щоб зберігати ${tab === 'fields' ? 'поля' : 'комплекти техніки'}, ` +
+                          'увійдіть або створіть акаунт — інакше їх немає де тримати. ' +
+                          'Сам розрахунок працює й без входу: людина в полі має отримати ' +
+                          'число, а не форму реєстрації.'
+                        }
+                      />
+                    </div>
+                  )
+              )}
 
-      {(tab === 'fields' || tab === 'machines') && (
-        user
-          ? <Saved kind={tab} input={input} onLoad={load} />
-          : (
-            <div className="narrow">
-              <AuthPanel
-                onAuth={auth}
-                title="акаунт"
-                lead={
-                  'Розрахунок працює й без входу. Акаунт потрібен лише щоб зберегти ' +
-                  'поля й комплекти техніки та відкрити їх з іншого пристрою — ' +
-                  'у полі з телефона, за столом з компʼютера.'
-                }
-              />
-            </div>
-          )
-      )}
+              {tab === 'rhythms' && (
+                <RhythmTable drillWidth={drill} sprayerWidth={leadWidth} />
+              )}
 
-      {tab === 'rhythms' && (
-        <RhythmTable drillWidth={drill} sprayerWidth={leadWidth} />
-      )}
-
-      <footer className="foot">
-        Усі машини заходять у поле з одного краю; сошники рахуються зліва
-        направо за напрямком руху. Розрахунок одновимірний — рельєф, клини й
-        нерівні межі поля він не враховує.
-      </footer>
+              <footer className="foot">
+                Усі машини заходять у поле з одного краю; сошники рахуються зліва
+                направо за напрямком руху. Розрахунок одновимірний — рельєф, клини й
+                нерівні межі поля він не враховує.
+              </footer>
+            </main>
+          </>
+        )}
+      </div>
     </div>
   )
 }

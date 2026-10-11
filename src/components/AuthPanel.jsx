@@ -2,6 +2,10 @@ import { useState } from 'react'
 
 // Вхід і реєстрація однією формою: поля ті самі, різниця лише в тому, куди
 // піде запит. Окремі сторінки для двох полів — зайвий клік на порожньому місці.
+//
+// Текст над формою — звичайний абзац, а не дрібна примітка: це перше, що
+// читають, дійшовши до «моїх полів», і саме він відповідає на питання «чому
+// в мене просять пошту».
 export default function AuthPanel({ onAuth, title, lead }) {
   const [mode, setMode] = useState('login')
   const [email, setEmail] = useState('')
@@ -28,7 +32,7 @@ export default function AuthPanel({ onAuth, title, lead }) {
   return (
     <div className="panel auth">
       <h2>{title || (register ? 'реєстрація' : 'вхід')}</h2>
-      {lead && <p className="note" style={{ margin: '0 0 14px' }}>{lead}</p>}
+      {lead && <p className="auth-lead">{lead}</p>}
 
       <div className="seg">
         <button type="button" className={!register ? 'is-on' : ''} onClick={() => { setMode('login'); setError('') }}>
@@ -50,7 +54,7 @@ export default function AuthPanel({ onAuth, title, lead }) {
         <label>
           Пошта
           <input type="email" value={email} onChange={(e) => setEmail(e.target.value)}
-            autoComplete="email" required />
+            autoComplete="email" placeholder="ваша@пошта.ua" required />
         </label>
         <label>
           Пароль

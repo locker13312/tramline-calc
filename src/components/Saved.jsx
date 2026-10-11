@@ -51,6 +51,10 @@ const KINDS = {
           coulters: input.coulters ?? null,
           drillWidth: input.drillWidth ?? null,
           drillTractor: input.drillTractor ?? null,
+          // Чиє число запасу — системи чи господаря. Окремої колонки під
+          // прапорець немає й не треба: без нього «запас 0,10» від системи
+          // не відрізнити від такого самого, заданого вручну.
+          marginManual: input.marginManual ?? null,
         },
       }
     },
@@ -70,6 +74,7 @@ const KINDS = {
       if (park.coulters) extra.coulters = park.coulters
       if (park.drillWidth) extra.drillWidth = park.drillWidth
       if (park.drillTractor) extra.drillTractor = park.drillTractor
+      if (park.marginManual != null) extra.marginManual = !!park.marginManual
       return { ...base, ...extra }
     },
     describe: (row) => {

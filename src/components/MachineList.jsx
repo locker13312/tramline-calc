@@ -1,7 +1,9 @@
 import { useState } from 'react'
 import { MACHINE_KINDS, kindOf, newMachine } from '../lib/machines'
 import { CHASSIS_PRESETS, SPRAYER_WIDTHS, HEADER_WIDTHS } from '../lib/presets'
+import { LIMITS } from '../lib/tramline'
 import { num } from '../lib/format'
+import NumField from './NumField'
 
 // ── Парк машин ────────────────────────────────────────────────────────────
 //
@@ -84,23 +86,74 @@ export default function MachineList({ machines, setMachines, result }) {
                   </span>
                   <span className="mcard-sum">
                     {num(m.width)} м · база {m.axles.map((a) => num(a.trackWidth)).join(' / ')} м
+                    {' · '}шина {m.axles.map((a) => num(a.tyreWidth)).join(' / ')} м
                   </span>
                 </button>
 
-                <div className="mcard-badges">
-                  {r?.base && <span className="mbadge is-base">крок колій</span>}
-                  {r?.fits && r.extraRows === 0 && !r.base && (
-                    <span className="mbadge is-good">їде готовою</span>
-                  )}
-                  {r?.fits && r.extraRows > 0 && !r.base && (
-                    <span className="mbadge is-cost">+{r.extraRows}</span>
-                  )}
-                  {r?.reason === 'blank' && <span className="mbadge is-bad">не заповнено</span>}
-                  {r && m.active && !r.fits && r.reason !== 'blank' && (
-                    <span className="mbadge is-bad">не вкладається</span>
-                  )}
-                  <span className="mcard-chev" aria-hidden="true">{isOpen ? '▴' : '▾'}</span>
-                </div>
+              </div>
+
+              {/* Значки й дії стоять своїм рядком, а не в одному з назвою: у
+                  сайдбарі на них не лишалося ширини, і рядок ламався
+                  посередині слова. Тут вони вміщаються всі й стоять рівно. */}
+              <div className="mcard-tags">
+                {/* «Крок колій» — не підпис, а перемикач: саме ним кажуть,
+                    під яку машину різати колію. Поки він був написом, його
+                    натискали й нічого не відбувалося.
+                    Станів три, і написані вони словами: «авто» — крок вибрала
+                    програма (найвужчою машиною), «закріплено» — його тримає
+                    господар, «зробити кроком» — цю машину можна поставити
+                    замість неї. Без цієї різниці натискання на єдиній машині
+                    нічого не міняло на вигляд, і кнопка здавалася мертвою. */}
+                {r?.base ? (
+                  <button
+                    type="button"
+                    className={`mbadge mbadge-act${r.basePinned ? ' is-base' : ''}`}
+                    onClick={() => pinBase(m.id)}
+                    aria-pressed={!!r.basePinned}
+                    title={r.basePinned
+                      ? 'Крок колій закріплений за цією машиною. Натисніть, щоб програма вибирала його сама'
+                      : 'Крок колій програма вибрала сама — за найвужчою машиною. Натисніть, щоб закріпити за цією'}
+                  >
+                    крок колій · {r.basePinned ? 'закріплено' : 'авто'}
+                  </button>
+                ) : m.active && r?.rhythm != null && r.rhythm <= LIMITS.rhythm ? (
+                  <button
+                    type="button"
+                    className="mbadge mbadge-act"
+                    onClick={() => pinBase(m.id)}
+                    aria-pressed="false"
+                    title={r?.fits
+                      ? 'Зробити крок колій рівним захвату цієї машини'
+                      : 'Ця машина в поточну колію не вкладається. Зробити колію під неї — ' +
+                        'тоді під питанням буде вже інша машина'}
+                  >
+                    зробити кроком
+                  </button>
+                ) : null}
+
+                {r?.fits && r.extraRows === 0 && !r.base && (
+                  <span className="mbadge is-good">їде готовою</span>
+                )}
+                {r?.fits && r.extraRows > 0 && !r.base && (
+                  <span className="mbadge is-cost">+{r.extraRows} сошників</span>
+                )}
+                {r?.reason === 'blank' && <span className="mbadge is-bad">не заповнено</span>}
+                {r && m.active && !r.fits && r.reason !== 'blank' && (
+                  <span className="mbadge is-bad">не вкладається</span>
+                )}
+                {!m.active && <span className="mbadge">не враховується</span>}
+
+                {/* «Параметри» стоїть у тому самому рядку, збоку від кроку
+                    колій: це дві дії над однією машиною, і шукати їх у
+                    різних місцях картки незручно. */}
+                <button
+                  type="button"
+                  className={`btn btn-xs btn-edit${isOpen ? ' is-on' : ''}`}
+                  onClick={() => setOpen(isOpen ? null : m.id)}
+                  aria-expanded={isOpen}
+                >
+                  {isOpen ? 'Згорнути' : 'Параметри'}
+                </button>
               </div>
 
               {isOpen && (
@@ -133,10 +186,10 @@ export default function MachineList({ machines, setMachines, result }) {
                     </label>
                     <label>
                       Захват, м
-                      <input
-                        type="number" min="0.5" step="0.1" value={m.width}
+                      <NumField
+                        min="0.5" step="0.1" value={m.width}
                         list={m.kind === 'combine' || m.kind === 'cart' ? 'header-widths' : 'sprayer-widths'}
-                        onChange={(e) => patch(m.id, { width: Number(e.target.value) })}
+                        onValue={(v) => patch(m.id, { width: v })}
                       />
                     </label>
                   </div>
@@ -168,13 +221,13 @@ export default function MachineList({ machines, setMachines, result }) {
                       <div className="duo">
                         <label>
                           Між колесами, м
-                          <input type="number" min="0.5" step="0.05" value={a.trackWidth}
-                            onChange={(e) => patchAxle(m.id, ai, { trackWidth: Number(e.target.value) })} />
+                          <NumField min="0.5" step="0.05" value={a.trackWidth}
+                            onValue={(v) => patchAxle(m.id, ai, { trackWidth: v })} />
                         </label>
                         <label>
                           Шина, м
-                          <input type="number" min="0.05" step="0.01" value={a.tyreWidth}
-                            onChange={(e) => patchAxle(m.id, ai, { tyreWidth: Number(e.target.value) })} />
+                          <NumField min="0.05" step="0.01" value={a.tyreWidth}
+                            onValue={(v) => patchAxle(m.id, ai, { tyreWidth: v })} />
                         </label>
                       </div>
                     </div>
@@ -192,20 +245,16 @@ export default function MachineList({ machines, setMachines, result }) {
                   <div className="duo">
                     <label>
                       Проходів за сезон
-                      <input type="number" min="0" step="1" value={m.passes ?? ''}
+                      <NumField min="0" step="1" value={m.passes}
                         placeholder="спільне"
-                        onChange={(e) => patch(m.id, {
-                          passes: e.target.value === '' ? null : Number(e.target.value),
-                        })} />
+                        onValue={(v) => patch(m.id, { passes: v })} />
                     </label>
                     <label>
                       Зсув від краю, м
-                      <input type="number" min="0" step="0.1"
-                        value={m.phase ?? ''}
+                      <NumField min="0" step="0.1"
+                        value={m.phase}
                         placeholder={r?.phase != null ? `авто ${num(r.phase)}` : 'авто'}
-                        onChange={(e) => patch(m.id, {
-                          phase: e.target.value === '' ? null : Number(e.target.value),
-                        })} />
+                        onValue={(v) => patch(m.id, { phase: v })} />
                     </label>
                   </div>
 
