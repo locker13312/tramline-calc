@@ -1,0 +1,84 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630" viewBox="0 0 1200 630">
+  <!-- Превʼю сайта для месенджерів і пошуку: те саме, що показує сама
+       програма, — поле в розрізі з колією й відповідь одним реченням.
+       Розмір 1200×630 — те, що очікують Open Graph і Twitter. -->
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#13131f"/>
+      <stop offset="1" stop-color="#1b1a33"/>
+    </linearGradient>
+  </defs>
+
+  <rect width="1200" height="630" fill="url(#bg)"/>
+
+  <!-- Поле в розрізі: рядки сходів і дві колії, що розривають їх. -->
+  <g>
+    <g fill="#aaa6f2" opacity="0.5">
+      <rect x="80"  y="300" width="7" height="250" rx="3.5"/>
+      <rect x="110" y="300" width="7" height="250" rx="3.5"/>
+      <rect x="140" y="300" width="7" height="250" rx="3.5"/>
+      <rect x="170" y="300" width="7" height="250" rx="3.5"/>
+      <rect x="200" y="300" width="7" height="250" rx="3.5"/>
+      <rect x="230" y="300" width="7" height="250" rx="3.5"/>
+      <rect x="260" y="300" width="7" height="250" rx="3.5"/>
+      <rect x="290" y="300" width="7" height="250" rx="3.5"/>
+      <rect x="440" y="300" width="7" height="250" rx="3.5"/>
+      <rect x="470" y="300" width="7" height="250" rx="3.5"/>
+      <rect x="500" y="300" width="7" height="250" rx="3.5"/>
+      <rect x="530" y="300" width="7" height="250" rx="3.5"/>
+      <rect x="560" y="300" width="7" height="250" rx="3.5"/>
+      <rect x="590" y="300" width="7" height="250" rx="3.5"/>
+      <rect x="620" y="300" width="7" height="250" rx="3.5"/>
+      <rect x="650" y="300" width="7" height="250" rx="3.5"/>
+      <rect x="800" y="300" width="7" height="250" rx="3.5"/>
+      <rect x="830" y="300" width="7" height="250" rx="3.5"/>
+      <rect x="860" y="300" width="7" height="250" rx="3.5"/>
+      <rect x="890" y="300" width="7" height="250" rx="3.5"/>
+      <rect x="920" y="300" width="7" height="250" rx="3.5"/>
+      <rect x="950" y="300" width="7" height="250" rx="3.5"/>
+      <rect x="980" y="300" width="7" height="250" rx="3.5"/>
+      <rect x="1010" y="300" width="7" height="250" rx="3.5"/>
+      <rect x="1040" y="300" width="7" height="250" rx="3.5"/>
+      <rect x="1070" y="300" width="7" height="250" rx="3.5"/>
+      <rect x="1100" y="300" width="7" height="250" rx="3.5"/>
+    </g>
+    <!-- Колія: дві смуги під колеса, між якими нічого не сіють. -->
+    <g fill="#e08a6f">
+      <rect x="330" y="285" width="10" height="280" rx="5"/>
+      <rect x="390" y="285" width="10" height="280" rx="5"/>
+      <rect x="690" y="285" width="10" height="280" rx="5"/>
+      <rect x="750" y="285" width="10" height="280" rx="5"/>
+    </g>
+  </g>
+
+  <!-- Знак програми -->
+  <g transform="translate(80 70)">
+    <rect width="76" height="76" rx="18" fill="#2a2850"/>
+    <g fill="#aaa6f2">
+      <rect x="5"  y="12" width="4.8" height="52" rx="2.4"/>
+      <rect x="14" y="12" width="4.8" height="52" rx="2.4"/>
+      <rect x="23" y="12" width="4.8" height="52" rx="2.4"/>
+      <rect x="53" y="12" width="4.8" height="52" rx="2.4"/>
+      <rect x="62" y="12" width="4.8" height="52" rx="2.4"/>
+    </g>
+    <g fill="#e08a6f">
+      <rect x="32.8" y="8" width="4" height="60" rx="2"/>
+      <rect x="42.8" y="8" width="4" height="60" rx="2"/>
+    </g>
+  </g>
+
+  <text x="180" y="112" fill="#eef0f4" font-family="IBM Plex Sans, Segoe UI, system-ui, sans-serif"
+    font-size="46" font-weight="700" letter-spacing="-1">Колія</text>
+  <text x="180" y="146" fill="#959cab" font-family="IBM Plex Mono, Consolas, monospace"
+    font-size="19" letter-spacing="0.5">розрахунок технологічної колії</text>
+
+  <text x="80" y="236" fill="#eef0f4" font-family="IBM Plex Sans, Segoe UI, system-ui, sans-serif"
+    font-size="40" font-weight="650" letter-spacing="-0.6">
+    Які сошники глушити — і на якому проході
+  </text>
+
+  <text x="80" y="590" fill="#959cab" font-family="IBM Plex Mono, Consolas, monospace"
+    font-size="20">
+    сівалка · обприскувач · комбайн · перевантажувач — одна колія на весь парк
+  </text>
+</svg>

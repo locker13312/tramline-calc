@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://tramline-calc.onrender.com/sitemap.xml

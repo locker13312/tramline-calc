@@ -3,10 +3,64 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
-    <meta name="theme-color" content="#1d2416" />
-    <meta name="description" content="Колія — розрахунок технологічної колії для сівби: які висівні секції глушити, на якому проході, і скільки це коштує." />
-    <link rel="icon" type="image/svg+xml" href="./favicon.svg" />
-    <title>Колія · розрахунок технологічної колії</title>
+    <!-- Колір смуги браузера ставиться наново при виборі теми (lib/look.js);
+         тут — темна основа, бо саме її побачать до першого малювання. -->
+    <meta name="theme-color" content="#101216" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+
+    <!-- ── Пошук і превʼю ──────────────────────────────────
+         Адреси тут — публічні, продакшнові. Якщо домен зміниться, правити
+         треба в трьох місцях: тут, у robots.txt і в sitemap.xml. -->
+    <title>Колія — розрахунок технологічної колії для сівби</title>
+    <meta name="description" content="Рахує, які висівні сошники глушити й на якому проході, щоб на полі лишилися смуги під колеса всього парку: обприскувача, розкидача, комбайна, перевантажувача. Усі проходи поля по номерах, підбір колісної бази, ціна питання в гривнях." />
+    <meta name="keywords" content="технологічна колія, колія для сівби, які сошники глушити, ритм сівалки, tramline, controlled traffic farming, колісна база, обприскувач, комбайн" />
+    <link rel="canonical" href="https://tramline-calc.onrender.com/" />
+
+    <!-- Open Graph / превʼю в месенджерах і соцмережах -->
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="Колія" />
+    <meta property="og:title" content="Колія — розрахунок технологічної колії" />
+    <meta property="og:description" content="Які сошники глушити й на якому проході, щоб потім було де їздити. Одна колія на весь парк машин." />
+    <meta property="og:url" content="https://tramline-calc.onrender.com/" />
+    <!-- PNG, а не SVG: Telegram і Facebook векторні превʼю не малюють. -->
+    <meta property="og:image" content="https://tramline-calc.onrender.com/preview.png" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content="Поле в розрізі: рядки сходів і дві технологічні колії між ними" />
+    <meta property="og:locale" content="uk_UA" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="Колія — розрахунок технологічної колії" />
+    <meta name="twitter:description" content="Які сошники глушити й на якому проході, щоб потім було де їздити." />
+    <meta name="twitter:image" content="https://tramline-calc.onrender.com/preview.png" />
+
+    <!-- Структуровані дані: щоб пошук розумів, що це програма, а не стаття. -->
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "SoftwareApplication",
+      "name": "Колія",
+      "url": "https://tramline-calc.onrender.com/",
+      "applicationCategory": "UtilitiesApplication",
+      "operatingSystem": "Web",
+      "inLanguage": "uk",
+      "description": "Розрахунок технологічної колії: які висівні сошники глушити й на якому проході, щоб на полі лишилися смуги під колеса всіх машин парку.",
+      "offers": { "@type": "Offer", "price": "0", "priceCurrency": "UAH" }
+    }
+    </script>
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "WebSite",
+      "name": "Колія",
+      "url": "https://tramline-calc.onrender.com/",
+      "inLanguage": "uk"
+    }
+    </script>
+
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="apple-touch-icon" href="/favicon.svg" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
