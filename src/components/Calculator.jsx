@@ -61,8 +61,10 @@ export default function Calculator({
       fieldLength: input.fieldLength,
       rowSpacing: input.rowSpacing,
       headland: input.headland,
+      serpentine: input.serpentine,
     }),
-    [result, input.fieldWidth, input.fieldLength, input.rowSpacing, input.headland],
+    [result, input.fieldWidth, input.fieldLength, input.rowSpacing, input.headland,
+      input.serpentine],
   )
 
   const advice = useMemo(() => suggestTracks({ ...input, machines }), [input, machines])
@@ -106,7 +108,7 @@ export default function Calculator({
       <main className="main">
         <div className="headline" ref={headline}>
           {result.ok
-            ? <Verdict result={result} />
+            ? <Verdict result={result} serpentine={!!input.serpentine} />
             : (
               <div className="verdict is-bad">
                 <div className="verdict-kicker">
@@ -155,6 +157,18 @@ export default function Calculator({
               <NumField min="0" step="1" value={input.headland} onValue={onNum('headland')} />
             </label>
             <p className="note">Смуга для розворотів. Зазвичай два-три заходи обприскувача.</p>
+
+            <label className="check">
+              <input type="checkbox" checked={!!input.serpentine}
+                onChange={(e) => set('serpentine', e.target.checked)} />
+              Поле їдуть човником
+            </label>
+            <p className="note">
+              Прохід туди, розворот, прохід назад сусідньою смугою. На зворотному
+              проході сівалка розвернена, і сошник, названий по полю, глушиться з
+              протилежного боку — тобто не той. Смуги від цього не зсуваються:
+              перераховуються номери, які називають у кабіні.
+            </p>
 
             <div className="derived">
               поле {num(((input.fieldWidth || 0) * (input.fieldLength || 0)) / 10000, 1)} га

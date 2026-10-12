@@ -894,13 +894,30 @@ export function computeTramlines(input) {
   }
 }
 
+// Номери сошників так, як їх бачить механізатор, коли сівалка розвернена.
+//
+// Поле їдуть човником: прохід туди, розворот на краю, прохід назад сусідньою
+// смугою. На зворотному проході сівалка розвернена на 180°, і сошник, який на
+// рамі позначений першим, опиняється з протилежного боку поля. Номер,
+// названий «по полю», глушить тоді не ту секцію — і дзеркально, тобто в
+// найгіршому місці: замість колії виходить друга пропущена смуга, а колія не
+// нарізається зовсім.
+//
+// Сама геометрія від цього не міняється: незасіяні смуги лягають там само.
+// Міняється лише те, яким числом їх назвати в кабіні.
+export const mirrorRows = (list, rows) =>
+  list.map((m) => rows + 1 - m).sort((a, b) => a - b)
+
 // ── Усе поле ──────────────────────────────────────────────────────────────
 //
 // Візерунок проходів має період k · W, тож картина по всій ширині — це той
 // самий цикл, повторений потрібну кількість разів. Рахуємо його явно, а не
 // множенням, бо поле майже ніколи не ділиться націло: останній прохід виходить
 // неповним, і саме там ховаються зайві колії та недосіяні смуги.
-export function fieldPlan(result, { fieldWidth, fieldLength, rowSpacing, headland = 0 } = {}) {
+export function fieldPlan(
+  result,
+  { fieldWidth, fieldLength, rowSpacing, headland = 0, serpentine = false } = {},
+) {
   // Сторона поля мусить бути числом, і скінченним. `Infinity > 0` — правда,
   // і далі вона протікала аж у відповідь: «поле Infinity га, проходів
   // Infinity». Порожнє поле — не привід показати нескінченність, тож
@@ -969,6 +986,11 @@ export function fieldPlan(result, { fieldWidth, fieldLength, rowSpacing, headlan
       else if (!disabled.includes(m)) sowing.push(m)
     }
 
+    // Хід човником: парні проходи їдуть назад, і сівалка на них розвернена.
+    // Номери по полю лишаються ті самі (геометрія не міняється), а в кабіні
+    // ті самі секції звуться дзеркально — саме їх і треба називати вголос.
+    const back = serpentine && i % 2 === 1
+
     passes.push({
       i: i + 1,
       cycleN: inCycle + 1,
@@ -982,6 +1004,15 @@ export function fieldPlan(result, { fieldWidth, fieldLength, rowSpacing, headlan
       outside,
       sowing,
       tramline: disabled.length > 0,
+      back,
+      // Те саме, але номерами з кабіни. Без човника збігається з полем.
+      cab: back
+        ? {
+          disabled: mirrorRows(disabled, rows),
+          outside: mirrorRows(outside, rows),
+          sowing: mirrorRows(sowing, rows),
+        }
+        : { disabled, outside, sowing },
     })
   }
 
@@ -1035,6 +1066,7 @@ export function fieldPlan(result, { fieldWidth, fieldLength, rowSpacing, headlan
     workWidth: mm(workWidth),
     workLength: mm(workLength),
     passes,
+    serpentine: !!serpentine,
     strips,
     sprayerPasses,
     basePasses: sprayerPasses,

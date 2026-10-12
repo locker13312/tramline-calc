@@ -101,6 +101,10 @@ const scenarios = {
 
   'половинний перший прохід': { ...DEFAULTS, halfStart: true },
 
+  // Хід човником: на зворотних проходах номери секцій перераховані, і саме
+  // там з'являється колонка «Хід» та інший список сошників.
+  'хід човником': { ...DEFAULTS, serpentine: true, __section: 'field' },
+
   'типові машини з defaultMachines': { ...DEFAULTS, machines: defaultMachines() },
 }
 

@@ -68,6 +68,7 @@ export default function PassList({ plan, rowSpacing, custom }) {
           <thead>
             <tr>
               <th>Прохід</th>
+              {plan.serpentine && <th>Хід</th>}
               <th>Від краю, м</th>
               <th>Що вимкнути</th>
               <th>Сіють сошники</th>
@@ -80,15 +81,18 @@ export default function PassList({ plan, rowSpacing, custom }) {
                   {p.i}
                   {p.tramline && <i className="pt-tag">колія</i>}
                 </td>
+                {plan.serpentine && (
+                  <td className="pt-m pt-dir">{p.back ? '← назад' : '→ туди'}</td>
+                )}
                 <td className="pt-m">{num(p.from, 1)} – {num(p.to, 1)}</td>
                 <td className="pt-do">
                   {p.tramline
-                    ? <b>{rangeText(p.disabled)}</b>
+                    ? <b>{rangeText(p.cab.disabled)}</b>
                     : <span className="pt-none">нічого</span>}
                   {p.outside.length > 0 && (
                     <span className="pt-out">
                       {p.tramline ? ' + ' : ''}
-                      {rangeText(p.outside)} — за межею поля
+                      {rangeText(p.cab.outside)} — за межею поля
                     </span>
                   )}
                   {/* Через кого саме глухне сошник. На жнивах це головне
@@ -103,7 +107,7 @@ export default function PassList({ plan, rowSpacing, custom }) {
                     </span>
                   )}
                 </td>
-                <td className="pt-m">{rangeText(p.sowing)}</td>
+                <td className="pt-m">{rangeText(p.cab.sowing)}</td>
               </tr>
             ))}
           </tbody>
@@ -111,7 +115,11 @@ export default function PassList({ plan, rowSpacing, custom }) {
       </div>
 
       <p className="note" style={{ margin: '12px 0 0' }}>
-        Сошники рахуються зліва направо за напрямком руху.{' '}
+        {plan.serpentine
+          ? 'Сошники рахуються зліва направо за напрямком руху — тобто з кабіни. '
+            + 'Поле їдуть човником, і на зворотному проході сівалка розвернена: '
+            + 'номери в таблиці вже перераховані під неї, глушити треба саме їх. '
+          : 'Сошники рахуються зліва направо за напрямком руху. '}
         {custom
           ? `Розкладка своя, найменший проміжок ${num(rowSpacing * 100, 0)} см — ` +
             'приблизно таку смугу й лишає кожен вимкнений сошник.'
@@ -124,8 +132,9 @@ export default function PassList({ plan, rowSpacing, custom }) {
 
 function passTitle(p) {
   const parts = [`прохід ${p.i}`]
-  if (p.tramline) parts.push(`вимкнути ${rangeText(p.disabled)}`)
+  if (p.back) parts.push('назад')
+  if (p.tramline) parts.push(`вимкнути ${rangeText(p.cab.disabled)}`)
   else parts.push('сіють усі сошники')
-  if (p.outside.length) parts.push(`за межею: ${rangeText(p.outside)}`)
+  if (p.cab.outside.length) parts.push(`за межею: ${rangeText(p.cab.outside)}`)
   return parts.join(' · ')
 }

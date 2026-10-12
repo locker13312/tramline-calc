@@ -1470,3 +1470,7 @@ body {
   .lp-rise, .lp-rise-side { transition: none; opacity: 1; transform: none; }
   .lp-mock-row, .au-side-say, .au-gains li { animation: none; }
 }
+
+/* Напрямок проходу в списку по полю. Колонка вузька й читається скоса —
+   стрілка з одним словом, а не речення. */
+.pt-dir { white-space: nowrap; font-family: var(--mono); font-size: 12px; }
