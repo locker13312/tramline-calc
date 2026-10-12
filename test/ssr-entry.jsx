@@ -134,7 +134,10 @@ for (const [name, input] of Object.entries(scenarios)) {
 // окремо — і ламалося.
 for (const tab of ['calc', 'rhythms']) {
   try {
-    const html = renderToString(<App startTab={tab} />)
+    // startScreen="app" тут обовʼязковий: сама програма відкривається з
+    // вітрини, і без нього перевірка малювала б її замість оболонки — тобто
+    // мовчки нічого не перевіряла.
+    const html = renderToString(<App startTab={tab} startScreen="app" />)
     if (!html.includes('Колія')) throw new Error('немає назви в шапці')
     if (/NaN|undefined/.test(html)) throw new Error('NaN або undefined у розмітці')
     console.log(`ok    оболонка, вкладка «${tab}»  (${html.length} символів)`)
