@@ -56,16 +56,29 @@ function Reveal({ children, delay = 0, side = false, className = '' }) {
 
 // Число, що набігає, коли до нього доходить прокручування. Дроби лишаються
 // дробами: «0,3 мс» після округлення до цілого стало б нулем.
+//
+// Починається воно з кінцевого значення, а не з нуля, і це важливо: якщо
+// спостерігач не спрацює — на сервері, у старому браузері, при вимкненій
+// анімації — на екрані лишиться правильне число без руху, а не «0 перевірок».
+// Так і було видно на проді: чотири нулі замість чисел. Прикраса, яка бреше
+// числом, гірша за відсутню прикрасу.
 function CountUp({ end, suffix = '' }) {
   const ref = useRef(null)
   const still = typeof IntersectionObserver === 'undefined'
-  const [n, setN] = useState(still ? end : 0)
+  const [n, setN] = useState(end)
 
   useEffect(() => {
     if (still || !ref.current) return
+    // Рух пропускаємо, коли людина просила його не показувати: число вже
+    // стоїть на місці, і анімувати його немає потреби.
+    const calm = window.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches
+    if (calm) return
+
+    let safety = 0
     const io = new IntersectionObserver((entries) => {
       if (!entries.some((e) => e.isIntersecting)) return
       io.disconnect()
+      setN(0)
       const started = performance.now()
       const step = () => {
         // Швидко спочатку, повільно в кінці: так читається останнє число, а
@@ -75,9 +88,14 @@ function CountUp({ end, suffix = '' }) {
         if (p < 1) requestAnimationFrame(step)
       }
       requestAnimationFrame(step)
+      // Страхувальник: кадри не завжди йдуть (вкладка у фоні, економія
+      // батареї, безголовий браузер), і без нього число лишалося б на нулі —
+      // саме так вітрина й виглядала на проді. Анімація тут окраса, а число
+      // мусить бути правильним у будь-якому разі.
+      safety = setTimeout(() => setN(end), 1400)
     }, { rootMargin: '-40px' })
     io.observe(ref.current)
-    return () => io.disconnect()
+    return () => { io.disconnect(); clearTimeout(safety) }
   }, [end, still])
 
   const whole = Number.isInteger(end)
