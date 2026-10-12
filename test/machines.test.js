@@ -437,3 +437,55 @@ test('машина зі своїм запасом не чіпає решту п�
   assert.equal(list.find((m) => m.id === 's').margin, 0.1)
   assert.equal(list.find((m) => m.id === 'c').margin, 0.3)
 })
+
+// ── Комбайн, що йде тими самими проходами, що й сівалка ───────────────────
+//
+// Питання з поля: у господарстві комбайн ходить так само, як сівалка, лише
+// жатка інша. Модель на це відповідає неприємне, і відповідь варто тримати
+// перевіркою, бо вона суперечить здоровому глузду: що ВУЖЧА машина, то
+// ДОРОЖЧА колія. Вузька машина робить більше проходів на ту саму ширину
+// поля, а кожен її прохід вимагає пари смуг під колеса.
+//
+// Сівалка 4 м, обприскувач 16 м (рівно чотири проходи сівалки), і комбайн
+// із тією самою колісною базою.
+test('що вужчий комбайн, то більше смуг вимагає колія', () => {
+  const drill = { rows: 26, rowSpacing: 4 / 26, margin: 0.1 }
+  const boom = mach('s', 'Обприскувач', 16, [{ trackWidth: 2.45, tyreWidth: 0.4 }])
+  const harvester = (width) =>
+    mach('h', 'Комбайн', width, [{ trackWidth: 2.45, tyreWidth: 0.4 }])
+
+  const alone = computeTramlines({ ...drill, machines: [boom] })
+  const same = computeTramlines({ ...drill, machines: [boom, harvester(4)] })
+  const twice = computeTramlines({ ...drill, machines: [boom, harvester(8)] })
+
+  for (const r of [alone, same, twice]) assert.equal(r.ok, true)
+  assert.equal(alone.cycle, 4)
+
+  // Комбайн із захватом сівалки їде КОЖНИМ її проходом, тож пара смуг
+  // потрібна на кожному — колії вже не чотири на цикл, а вісім.
+  assert.ok(same.passes.every((p) => p.disabled.length > 0),
+    'при однаковому захваті колія потрібна на кожному проході')
+  assert.equal(same.disabledPerCycle, 4 * alone.disabledPerCycle)
+
+  // Удвічі ширший комбайн кладе по одному колесу на прохід замість двох.
+  assert.equal(twice.disabledPerCycle, 2 * alone.disabledPerCycle)
+  assert.ok(twice.disabledPerCycle < same.disabledPerCycle)
+})
+
+// Той самий комбайн із чужою колісною базою — і ціна колії стрибає, хоч
+// жоден захват не змінився. Саме це й означає «звести бази до одного
+// значення»: пів години з ключем проти кількох центнерів з поля.
+test('чужа колісна база комбайна дорожча за свою', () => {
+  const drill = { rows: 26, rowSpacing: 4 / 26, margin: 0.1 }
+  const boom = mach('s', 'Обприскувач', 16, [{ trackWidth: 2.45, tyreWidth: 0.4 }])
+  const own = computeTramlines({
+    ...drill, machines: [boom, mach('h', 'Комбайн', 8, [{ trackWidth: 2.45, tyreWidth: 0.4 }])],
+  })
+  const alien = computeTramlines({
+    ...drill, machines: [boom, mach('h', 'Комбайн', 8, [{ trackWidth: 3.0, tyreWidth: 0.8 }])],
+  })
+  assert.equal(own.ok, true)
+  assert.equal(alien.ok, true)
+  assert.ok(alien.disabledPerCycle > own.disabledPerCycle,
+    `своя база ${own.disabledPerCycle}, чужа ${alien.disabledPerCycle}`)
+})
