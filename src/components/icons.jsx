@@ -45,17 +45,6 @@ export function SunIcon(props) {
   )
 }
 
-// Тема «як у системі» — монітор: він і означає «бере з пристрою». Півмісяць
-// на тлі сонця в такому розмірі перетворюється на пляму.
-export function AutoThemeIcon(props) {
-  return (
-    <svg {...base} {...props}>
-      <rect x="3" y="4.5" width="18" height="12" rx="2" />
-      <path d="M9 20h6M12 16.5V20" />
-    </svg>
-  )
-}
-
 export function ExitIcon(props) {
   return (
     <svg {...base} {...props}>
@@ -150,6 +139,18 @@ export function SlidersIcon(props) {
       <path d="M4 7.5h8M17 7.5h3M4 16.5h3M12 16.5h8" />
       <circle cx="14.5" cy="7.5" r="2.3" />
       <circle cx="9.5" cy="16.5" r="2.3" />
+    </svg>
+  )
+}
+
+// Про програму — сторінка, що пояснює, нащо вона. Коло з літерою «i» тут
+// читається з першого погляду навіть у рядку з іншими значками.
+export function InfoIcon(props) {
+  return (
+    <svg {...base} {...props}>
+      <circle cx="12" cy="12" r="8.6" />
+      <path d="M12 11v5.4" />
+      <path d="M12 7.9v.1" />
     </svg>
   )
 }

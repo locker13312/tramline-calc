@@ -33,12 +33,14 @@ function blocks() {
 
 const all = blocks()
 
-// Resolve the token set for one theme + accent combination.
-function tokens(theme, accent) {
+// Resolve the token set for one theme.
+//
+// Акцент більше не вибирають: колір у системі один, тож і міряти треба один
+// набір на тему, а не шість. Темна тема має два входи — прямий вибір і
+// системна тема до першого вибору, — і міряються обидва: значення в них
+// однакові, але розходження тут нікому не видно, крім цієї перевірки.
+function tokens(theme) {
   const want = (sel) => {
-    if (sel.includes('[data-accent=')) {
-      return sel.includes(`[data-accent="${accent}"]`)
-    }
     if (sel.includes('[data-theme="dark"]')) return theme === 'dark'
     // Inside the prefers-color-scheme block the selector carries :not([light]).
     if (sel.includes(':not([data-theme="light"])')) return theme === 'dark-auto'
@@ -106,39 +108,36 @@ const PAIRS = [
 ]
 
 const THEMES = ['light', 'dark', 'dark-auto']
-const ACCENTS = ['indigo', 'green', 'blue', 'teal', 'violet', 'slate']
 
 let bad = 0
 let worst = { r: Infinity }
 let worstText = { r: Infinity }
 for (const theme of THEMES) {
-  for (const accent of ACCENTS) {
-    const v = tokens(theme, accent)
-    for (const [fg, bgk, bar, what] of PAIRS) {
-      const isText = bar >= 3
-      const a = v[fg]
-      const b = v[bgk]
-      if (!a || !b || !a.startsWith('#') || !b.startsWith('#')) {
-        console.log(`?  ${theme}/${accent}  ${fg} on ${bgk}: не визначено (${a} / ${b})`)
-        bad++
-        continue
-      }
-      const r = ratio(a, b)
-      if (r < worst.r) worst = { r, theme, accent, fg, bgk, what }
-      if (isText && r < worstText.r) worstText = { r, theme, accent, fg, bgk, what }
-      if (r < bar) {
-        bad++
-        console.log(`FAIL ${theme}/${accent}  ${r.toFixed(2)}:1 < ${bar}  ${fg} (${a}) на ${bgk} (${b})  — ${what}`)
-      }
+  const v = tokens(theme)
+  for (const [fg, bgk, bar, what] of PAIRS) {
+    const isText = bar >= 3
+    const a = v[fg]
+    const b = v[bgk]
+    if (!a || !b || !a.startsWith('#') || !b.startsWith('#')) {
+      console.log(`?  ${theme}  ${fg} on ${bgk}: не визначено (${a} / ${b})`)
+      bad++
+      continue
+    }
+    const r = ratio(a, b)
+    if (r < worst.r) worst = { r, theme, fg, bgk, what }
+    if (isText && r < worstText.r) worstText = { r, theme, fg, bgk, what }
+    if (r < bar) {
+      bad++
+      console.log(`FAIL ${theme}  ${r.toFixed(2)}:1 < ${bar}  ${fg} (${a}) на ${bgk} (${b})  — ${what}`)
     }
   }
 }
 
 console.log(`\nнайтісніший текст: ${worstText.r.toFixed(2)}:1 — ${worstText.fg} на ${worstText.bgk}`
-  + ` (${worstText.theme}/${worstText.accent}, ${worstText.what})`)
+  + ` (${worstText.theme}, ${worstText.what})`)
 console.log(`найтісніша межа:   ${worst.r.toFixed(2)}:1 — ${worst.fg} на ${worst.bgk}`
-  + ` (${worst.theme}/${worst.accent}, ${worst.what})`)
+  + ` (${worst.theme}, ${worst.what})`)
 console.log(bad
   ? `\n${bad} пар не дотягують`
-  : `\nусі ${PAIRS.length * THEMES.length * ACCENTS.length} пар проходять`)
+  : `\nусі ${PAIRS.length * THEMES.length} пар проходять`)
 process.exit(bad ? 1 : 0)

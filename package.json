@@ -14,6 +14,7 @@
     "test:css": "node test/css-cover.mjs",
     "test:contrast": "node test/contrast.mjs",
     "test:speed": "node test/speed.mjs",
+    "test:server": "node --test test/server.mjs",
     "server": "node server/index.js",
     "start": "node server/index.js",
     "dev:server": "node --watch server/index.js"

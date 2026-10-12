@@ -4,8 +4,8 @@
        Розмір 1200×630 — те, що очікують Open Graph і Twitter. -->
   <defs>
     <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0" stop-color="#13131f"/>
-      <stop offset="1" stop-color="#1b1a33"/>
+      <stop offset="0" stop-color="#101216"/>
+      <stop offset="1" stop-color="#18242d"/>
     </linearGradient>
   </defs>
 
@@ -13,7 +13,7 @@
 
   <!-- Поле в розрізі: рядки сходів і дві колії, що розривають їх. -->
   <g>
-    <g fill="#aaa6f2" opacity="0.5">
+    <g fill="#8fb6d0" opacity="0.5">
       <rect x="80"  y="300" width="7" height="250" rx="3.5"/>
       <rect x="110" y="300" width="7" height="250" rx="3.5"/>
       <rect x="140" y="300" width="7" height="250" rx="3.5"/>
@@ -53,8 +53,8 @@
 
   <!-- Знак програми -->
   <g transform="translate(80 70)">
-    <rect width="76" height="76" rx="18" fill="#2a2850"/>
-    <g fill="#aaa6f2">
+    <rect width="76" height="76" rx="18" fill="#1f3340"/>
+    <g fill="#8fb6d0">
       <rect x="5"  y="12" width="4.8" height="52" rx="2.4"/>
       <rect x="14" y="12" width="4.8" height="52" rx="2.4"/>
       <rect x="23" y="12" width="4.8" height="52" rx="2.4"/>
@@ -69,7 +69,7 @@
 
   <text x="180" y="112" fill="#eef0f4" font-family="IBM Plex Sans, Segoe UI, system-ui, sans-serif"
     font-size="46" font-weight="700" letter-spacing="-1">Колія</text>
-  <text x="180" y="146" fill="#959cab" font-family="IBM Plex Mono, Consolas, monospace"
+  <text x="180" y="146" fill="#9aa3b2" font-family="IBM Plex Mono, Consolas, monospace"
     font-size="19" letter-spacing="0.5">розрахунок технологічної колії</text>
 
   <text x="80" y="236" fill="#eef0f4" font-family="IBM Plex Sans, Segoe UI, system-ui, sans-serif"
@@ -77,7 +77,7 @@
     Які сошники глушити — і на якому проході
   </text>
 
-  <text x="80" y="590" fill="#959cab" font-family="IBM Plex Mono, Consolas, monospace"
+  <text x="80" y="590" fill="#9aa3b2" font-family="IBM Plex Mono, Consolas, monospace"
     font-size="20">
     сівалка · обприскувач · комбайн · перевантажувач — одна колія на весь парк
   </text>

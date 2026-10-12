@@ -5,13 +5,25 @@ import { drillGeometry, resolveMargin, AUTO_MARGIN } from './lib/tramline'
 import { api, token } from './lib/api'
 import { num } from './lib/format'
 import Calculator from './components/Calculator'
-import AuthPanel from './components/AuthPanel'
+import AuthScreen from './components/AuthScreen'
+import Landing from './components/Landing'
 import Saved from './components/Saved'
 import RhythmTable from './components/RhythmTable'
 import Sidebar from './components/Sidebar'
 import { useLook } from './lib/look'
 
 const STORE = 'tramline_input'
+
+// Чи людина вже була в самій програмі. Вітрина — екран для того, хто прийшов
+// за посиланням і ще не знає, що це за програма: спершу треба відповісти «що
+// це і чи воно про моє поле». Хто вже рахував — відкриває програму, щоб
+// порахувати, а не читати, тому вітрину він бачить лише пунктом меню.
+const SEEN = 'tramline_seen'
+
+const seenBefore = () => {
+  try { return !!(localStorage.getItem(SEEN) || localStorage.getItem(STORE)) }
+  catch { return true }   // приватний режим: вітриною не заступаємо розрахунок
+}
 
 // Знак програми — те, що вона рахує, а не абстракція: сходи рядками, а
 // посередині колія. Колія тут не одна смуга, а розрив у сходах, у якому
@@ -60,14 +72,22 @@ function Intro() {
   )
 }
 
-// startTab — з якої вкладки відкритися. Потрібне перевірці рендером: вона
-// малює оболонку з кожною вкладкою, щоб жодна не ламалася непоміченою.
-export default function App({ startTab = 'calc' }) {
+// startTab — з якої вкладки відкритися, startScreen — з якого екрана.
+// Потрібні перевірці рендером: вона малює оболонку з кожною вкладкою й кожен
+// екран окремо, щоб жоден не ламався непоміченим.
+export default function App({ startTab = 'calc', startScreen }) {
   const [input, setInput] = useState(() => {
     try { return { ...DEFAULTS, ...JSON.parse(localStorage.getItem(STORE) || '{}') } }
     catch { return DEFAULTS }
   })
   const [tab, setTab] = useState(startTab)
+  // Який екран зараз: вітрина, сама програма чи вхід. Три екрани, а не
+  // адреси: розрахунок живе в одному стані, і перехід на вітрину й назад не
+  // має його губити.
+  const [screen, setScreen] = useState(startScreen ?? (seenBefore() ? 'app' : 'site'))
+  // Через що людину привели на вхід: «мої поля» і «техніка» просять акаунт з
+  // різних причин, і мовчазна форма пошти на це не відповідає.
+  const [why, setWhy] = useState(null)
   const [user, setUser] = useState(null)
   // Анімацію показуємо лише коли сторінку справді відкрили, а не на кожному
   // перемалюванні; знімаємо її з DOM, щоб вона не перехоплювала натискання.
@@ -102,10 +122,32 @@ export default function App({ startTab = 'calc' }) {
       .finally(() => setChecked(true))
   }, [])
 
+  // Зайти в саму програму — і запамʼятати, що вітрину вже бачили: наступного
+  // разу людина відкриє розрахунок, а не сторінку про нього.
+  const enter = (t) => {
+    try { localStorage.setItem(SEEN, '1') } catch { /* приватний режим */ }
+    if (t) setTab(t)
+    setScreen('app')
+  }
+
+  // Вкладки, яким потрібен акаунт, ведуть на вхід. Показувати там порожній
+  // список «моїх полів» означало б робити вигляд, що вони просто скінчились.
+  const go = (t) => {
+    if ((t === 'fields' || t === 'machines') && !user) {
+      setWhy(t)
+      setScreen('auth')
+      return
+    }
+    setTab(t)
+  }
+
   const auth = async (mode, body) => {
     const d = mode === 'register' ? await api.register(body) : await api.login(body)
     token.set(d.token)
     setUser(d.user)
+    // Повертаємо туди, звідки прийшли по акаунт, а не на перший екран.
+    enter(why ?? 'fields')
+    setWhy(null)
   }
 
   const logout = () => { token.set(null); setUser(null); setTab('calc') }
@@ -163,6 +205,40 @@ export default function App({ startTab = 'calc' }) {
     },
   ]
 
+  // Вітрина й вхід — екрани на всю сторінку, без сайдбара: на першому з них
+  // немає чим керувати, а на другому керувати нічим не можна, доки не ввійшли.
+  if (screen !== 'app') {
+    return (
+      <>
+        {intro && <Intro />}
+        {screen === 'site' ? (
+          <Landing
+            mark={<Mark size={34} />}
+            onOpen={() => enter('calc')}
+            onAuth={() => { setWhy(null); setScreen('auth') }}
+            user={user}
+            onAccount={() => enter('fields')}
+            look={look} setLook={setLook}
+          />
+        ) : (
+          <AuthScreen
+            mark={<Mark size={34} />}
+            onAuth={auth}
+            onHome={() => setScreen('site')}
+            onSkip={() => enter('calc')}
+            initialMode={why ? 'register' : 'login'}
+            lead={why && (
+              `Щоб зберігати ${why === 'fields' ? 'поля' : 'комплекти техніки'}, `
+              + 'потрібен акаунт — інакше їх немає де тримати. Сам розрахунок '
+              + 'працює й без входу: людина в полі має отримати число, а не '
+              + 'форму реєстрації.'
+            )}
+          />
+        )}
+      </>
+    )
+  }
+
   return (
     <div className={`app${menu ? ' is-menu' : ''}`}>
       {intro && <Intro />}
@@ -170,11 +246,12 @@ export default function App({ startTab = 'calc' }) {
       <div className="shell">
         <Sidebar
           mark={<Mark />}
-          tab={tab} setTab={setTab}
+          tab={tab} setTab={go}
+          onHome={() => setScreen('site')}
           section={section} setSection={setSection}
           machineCount={machineCount} now={now}
           user={user} checked={checked}
-          onAccount={() => { setTab('fields'); setMenu(false) }}
+          onAccount={() => { go('fields'); setMenu(false) }}
           onLogout={logout}
           look={look} setLook={setLook}
           menu={menu} setMenu={setMenu}
@@ -192,17 +269,22 @@ export default function App({ startTab = 'calc' }) {
                 user
                   ? <Saved kind={tab} input={input} onLoad={load} />
                   : (
+                    // Сюди доходять лише відкривши вкладку напряму: з меню
+                    // вона веде на вхід. Другої форми пошти тут немає —
+                    // одна форма, один екран, і той самий текст у ньому.
                     <div className="narrow">
-                      <AuthPanel
-                        onAuth={auth}
-                        title={tab === 'fields' ? 'мої поля — потрібен акаунт' : 'техніка — потрібен акаунт'}
-                        lead={
-                          `Щоб зберігати ${tab === 'fields' ? 'поля' : 'комплекти техніки'}, ` +
-                          'увійдіть або створіть акаунт — інакше їх немає де тримати. ' +
-                          'Сам розрахунок працює й без входу: людина в полі має отримати ' +
-                          'число, а не форму реєстрації.'
-                        }
-                      />
+                      <div className="panel auth">
+                        <h2>{tab === 'fields' ? 'мої поля — потрібен акаунт' : 'техніка — потрібен акаунт'}</h2>
+                        <p className="auth-lead">
+                          Щоб зберігати {tab === 'fields' ? 'поля' : 'комплекти техніки'},
+                          потрібен акаунт — інакше їх немає де тримати. Сам розрахунок
+                          працює й без входу.
+                        </p>
+                        <button type="button" className="btn"
+                          onClick={() => { setWhy(tab); setScreen('auth') }}>
+                          Увійти або створити акаунт
+                        </button>
+                      </div>
                     </div>
                   )
               )}

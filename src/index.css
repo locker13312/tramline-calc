@@ -2,8 +2,9 @@
    Кольори взяті з поля: ґрунт, сходи, іржа на слідах коліс.
    Світла тема — робота за столом, темна — кабіна й вечір.
 
-   Тему й колір акценту вибирає людина: data-theme="light|dark" і
-   data-accent на <html>. Без них працює системна тема — так воно й було.
+   Тему вибирає людина: data-theme="light|dark" на <html>. Поки вибору не
+   зробили — працює системна тема, щоб перший екран не блимав чужим тлом.
+   Колір акценту один на всю систему й не вибирається.
 
    Темна основа навмисно майже нейтральна, а не темно-зелена, як раніше.
    На зеленому тлі зелений акцент і дрібний підпис зливалися: текст ніби є,
@@ -11,16 +12,23 @@
    лишається там, де він щось означає. */
 
 :root {
-  /* Акцент. Кожен варіант задає пару: як він виглядає на папері й як на
-     темному. Один і той самий колір не може бути читабельним і там, і там,
-     тож тема лише вибирає, котрий із двох узяти.
-     За замовчуванням — індиго, а не зелений. Зелений тут означав сходи, але
-     поруч із рудим слідом колеса й на зеленавих схемах він губився, та й
-     половина інтерфейсу виходила однією зеленою плямою. Індиго не трапляється
-     ні на схемі поля, ні в кольорах машин, тож усе, що ним пофарбоване, —
-     це те, що натискають. Зелений лишився у виборі. */
-  --accent-l: #4a44c6;  --accent-l-soft: #e8e7fb;
-  --accent-d: #aaa6f2;  --accent-d-soft: #1e1c36;
+  /* Акцент — один на всю систему, двома значеннями: як він виглядає на
+     папері й як на темному. Один і той самий колір не може бути читабельним
+     і там, і там, тож тема лише вибирає, котрий із двох узяти.
+
+     Вибору кольору більше немає, і це не спрощення заради спрощення.
+     Шість акцентів означали шість систем, кожну з яких треба тримати
+     читабельною, а на екрані — кольорову мішанину: акцент одного тону,
+     слід колеса другого, машини ще п'ятьох. Тепер колір у системі лише
+     там, де він щось означає.
+
+     Сталево-синій, а не індиго: він тихий, не світиться на тлі й не
+     трапляється ні на схемі поля, ні в кольорах машин — тож усе, що ним
+     пофарбоване, це те, що натискають. Міра тут не око, а
+     test/contrast.mjs: 6,65:1 проти картки на світлому, 8,02:1 на темному,
+     і білий текст на самій заливці тримає 6,71:1. */
+  --accent-l: #35607f;  --accent-l-soft: #e4ecf2;
+  --accent-d: #8fb6d0;  --accent-d-soft: #18242d;
 
   --bg: #f4f3ee;
   --panel: #fffefb;
@@ -66,33 +74,6 @@
   --radius: 12px;
   --sans: 'IBM Plex Sans', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
   --mono: 'IBM Plex Mono', ui-monospace, 'Cascadia Mono', Consolas, monospace;
-}
-
-/* Варіанти акценту. Жоден не підходить до кольору сліду колеса впритул —
-   інакше на схемі не відрізнити засіяний рядок від заглушеного. */
-[data-accent="indigo"] {
-  --accent-l: #4a44c6;  --accent-l-soft: #e8e7fb;
-  --accent-d: #aaa6f2;  --accent-d-soft: #1e1c36;
-}
-[data-accent="green"] {
-  --accent-l: #427029;  --accent-l-soft: #e6eedd;
-  --accent-d: #92c968;  --accent-d-soft: #1e2a16;
-}
-[data-accent="blue"] {
-  --accent-l: #2a6ba6;  --accent-l-soft: #e1ecf7;
-  --accent-d: #74b0e0;  --accent-d-soft: #152435;
-}
-[data-accent="teal"] {
-  --accent-l: #1d7568;  --accent-l-soft: #dcefeb;
-  --accent-d: #5cc6b2;  --accent-d-soft: #112725;
-}
-[data-accent="violet"] {
-  --accent-l: #63479b;  --accent-l-soft: #eae4f6;
-  --accent-d: #b095e2;  --accent-d-soft: #1f1a31;
-}
-[data-accent="slate"] {
-  --accent-l: #4a5560;  --accent-l-soft: #e6e9ec;
-  --accent-d: #a9b7c3;  --accent-d-soft: #1b2027;
 }
 
 /* Темна тема. Один набір значень, два входи: системна тема, якщо людина не
@@ -1027,71 +1008,13 @@ body {
 @media (prefers-reduced-motion: reduce) {
   .intro { animation-delay: 0s; animation-duration: 0.01s; }
   .intro-row, .intro-name, .intro-sub,
-  .headline > .verdict, .look-pop, .sticky-answer { animation: none; }
+  .headline > .verdict, .sticky-answer { animation: none; }
   .mswitch span, .mswitch span::after, .mcard { transition: none; }
 }
 
 /* Відповідь і панелі проступають, а не блимають. */
 .headline > .verdict { animation: lift 0.32s ease backwards; }
 
-/* ── Тема й колір ──────────────────────────────────────────────────────── */
-.look { position: relative; }
-.look-pop {
-  position: fixed; z-index: 60;
-  width: 260px; padding: 13px 14px;
-  background: var(--panel); border: 1px solid var(--line-2);
-  border-radius: 10px; box-shadow: 0 10px 28px rgba(0, 0, 0, 0.18);
-  animation: lift 0.16s ease;
-}
-.look-row {
-  display: flex; align-items: center; justify-content: space-between;
-  gap: 10px; margin-bottom: 10px;
-}
-.look-k {
-  font-family: var(--mono); font-size: 11.5px; letter-spacing: 0.08em;
-  text-transform: uppercase; color: var(--ink-3);
-}
-.look-seg {
-  display: flex; gap: 2px; padding: 2px;
-  background: var(--sunken); border-radius: 7px;
-}
-.look-seg-b {
-  padding: 5px 9px; border: 0; border-radius: 5px; cursor: pointer;
-  font: 500 12px var(--sans); color: var(--ink-2); background: transparent;
-}
-.look-seg-b.is-on { background: var(--panel); color: var(--ink); font-weight: 650; }
-
-.look-now { font-size: 12.5px; color: var(--ink); font-weight: 600; }
-
-.look-dots { display: flex; gap: 8px; margin: 2px 0 11px; }
-/* Кружечок малює свій колір, а не поточний: змінні акценту задані на
-   [data-accent], тож кнопка з цим атрибутом підставляє власні значення.
-   Раніше правило було привʼязане до :root — і всі п'ять кружечків виходили
-   однакові, кольору вибраного. Вибрати колір, не бачачи його, неможливо. */
-.look-swatch {
-  display: flex; align-items: center; justify-content: center;
-  width: 30px; height: 30px; border-radius: 50%; cursor: pointer; padding: 0;
-  border: 2px solid transparent; background: var(--accent-l);
-  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.14);
-  color: #fff;      /* галочка на світлому кружечку — див. темну тему нижче */
-}
-.look-swatch svg { width: 16px; height: 16px; }
-/* Вибраний позначений не лише обідком, а й галочкою: обідок кольору тексту
-   на темному кружечку видно погано, та й колір сам по собі не позначка. */
-.look-swatch.is-on { border-color: var(--ink); }
-.look-swatch:hover { box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.14), 0 0 0 3px var(--sunken); }
-
-:root[data-theme="dark"] .look-swatch { background: var(--accent-d); color: #101216; }
-@media (prefers-color-scheme: dark) {
-  :root:not([data-theme="light"]) .look-swatch { background: var(--accent-d); color: #101216; }
-}
-.look-note { margin: 0; font-size: 12px; line-height: 1.45; color: var(--ink-3); }
-
-@media (max-width: 460px) {
-  .look-pop { width: min(260px, calc(100vw - 28px)); }
-}
-
-/* ── Розділи налаштувань ───────────────────────────────────────────────── */
 /* ── Відповідь, що лишається на видноті ────────────────────────────────── */
 /* Тільки на телефоні: на широкому екрані форма збоку, і вердикт видно й так. */
 .sticky-answer { display: none; }
@@ -1155,4 +1078,393 @@ body {
   .chip, .passtable tbody tr.is-hit {
     -webkit-print-color-adjust: exact; print-color-adjust: exact;
   }
+}
+
+/* ── Вітрина ───────────────────────────────────────────────────────────────
+   Публічна сторінка: її читає той, хто ще не знає, що це за програма.
+   Увесь текст — у lib/site.js, тут лише те, як він стоїть.
+
+   Кольори — ті самі токени, що й у програмі, без жодного нового. Це не
+   економія: кожен токен уже проміряний test/contrast.mjs у трьох темах і
+   шести акцентах, а свіжий колір «тільки для вітрини» означав би сторінку,
+   яка в кабіні ввечері не читається. */
+
+.lp {
+  min-height: 100vh; background: var(--bg); color: var(--ink);
+  /* Прокручування тут своє: оболонка програми його не має, бо гортається
+     сайдбар, а вітрина — довга сторінка. */
+  overflow-x: hidden;
+}
+.lp-in { width: 100%; max-width: 1080px; margin: 0 auto; padding: 0 clamp(16px, 4vw, 32px); }
+.lp-sec { padding: clamp(40px, 6vw, 72px) 0; }
+.lp-tight { padding-top: 0; }
+
+/* ── Рейка вгорі ───────────────────────────────────────── */
+.lp-nav {
+  position: sticky; top: 0; z-index: 20;
+  display: flex; align-items: center; gap: 14px;
+  padding: 11px clamp(16px, 4vw, 32px);
+  background: var(--bg); border-bottom: 1px solid var(--line);
+}
+.lp-logo {
+  display: inline-flex; align-items: center; gap: 11px;
+  background: none; border: none; padding: 0; cursor: pointer; color: inherit;
+}
+.lp-logo-t { display: flex; flex-direction: column; align-items: flex-start; line-height: 1.25; }
+.lp-logo-t b { font-size: 16px; font-weight: 700; letter-spacing: -0.01em; color: var(--ink); }
+.lp-logo-t i {
+  font-style: normal; font-family: var(--mono); font-size: 11px; color: var(--ink-3);
+}
+.lp-links { display: flex; gap: 2px; margin-left: auto; }
+.lp-links button {
+  padding: 7px 11px; border: none; background: none; cursor: pointer;
+  font: 500 13.5px var(--sans); color: var(--ink-2); border-radius: 8px;
+}
+.lp-links button:hover { color: var(--crop); background: var(--crop-soft); }
+.lp-nav-acts { display: flex; align-items: center; gap: 8px; }
+.lp-theme { padding: 7px 10px; }
+
+/* ── Перший екран ──────────────────────────────────────── */
+.lp-hero { padding-top: clamp(28px, 5vw, 56px); }
+.lp-hero-grid {
+  display: grid; grid-template-columns: 1.05fr 0.95fr;
+  gap: clamp(26px, 5vw, 56px); align-items: center;
+}
+.lp-badge {
+  display: inline-block; margin-bottom: 18px;
+  padding: 6px 12px; border-radius: 999px;
+  font: 600 11.5px var(--mono); letter-spacing: 0.08em; text-transform: uppercase;
+  color: var(--crop); background: var(--crop-soft); border: 1px solid var(--crop);
+}
+.lp-h1 {
+  margin: 0 0 16px; font-size: clamp(30px, 4.6vw, 50px); font-weight: 700;
+  line-height: 1.06; letter-spacing: -0.03em; color: var(--ink);
+}
+.lp-lead {
+  margin: 0 0 24px; max-width: 540px;
+  font-size: clamp(15px, 1.6vw, 17.5px); line-height: 1.6; color: var(--ink-2);
+}
+.lp-acts { display: flex; flex-wrap: wrap; gap: 11px; margin-bottom: 14px; }
+.lp-acts-mid { justify-content: center; }
+.lp-cta { padding: 13px 24px; font-size: 15px; min-height: 48px; }
+.lp-note { margin: 0; font-family: var(--mono); font-size: 12.5px; color: var(--ink-3); }
+.lp-chips { display: flex; flex-wrap: wrap; gap: 8px; margin: 16px 0 0; padding: 0; list-style: none; }
+.lp-chips li {
+  display: inline-flex; align-items: center; gap: 7px;
+  padding: 5px 11px; border-radius: 999px;
+  font-size: 12.5px; color: var(--ink-2);
+  background: var(--panel); border: 1px solid var(--line);
+}
+.lp-chips li::before {
+  content: ''; width: 6px; height: 6px; border-radius: 50%; background: var(--crop);
+}
+
+/* ── Макет програми ────────────────────────────────────── */
+.lp-mock-wrap { position: relative; }
+.lp-mock {
+  background: var(--panel); border: 1px solid var(--line);
+  border-radius: var(--radius); overflow: hidden;
+  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.1);
+}
+.lp-mock-bar {
+  display: flex; align-items: center; gap: 6px;
+  padding: 10px 13px; border-bottom: 1px solid var(--line); background: var(--sunken);
+}
+.lp-mock-bar i { width: 9px; height: 9px; border-radius: 50%; background: var(--line-2); }
+.lp-mock-bar span {
+  margin-left: 8px; font-family: var(--mono); font-size: 11px; color: var(--ink-3);
+}
+.lp-mock-body { padding: 16px; }
+.lp-mock-verdict { margin-bottom: 14px; }
+.lp-mock-kicker {
+  display: block; margin-bottom: 5px;
+  font: 600 10.5px var(--mono); letter-spacing: 0.12em; text-transform: uppercase;
+  color: var(--ink-3);
+}
+.lp-mock-verdict strong {
+  display: block; font-size: 17px; font-weight: 650; line-height: 1.3;
+  letter-spacing: -0.01em; color: var(--ink);
+}
+/* Поле в розрізі: ті самі сходи й та сама колія, що на схемі в програмі. */
+.lp-mock-field {
+  display: flex; align-items: flex-end; gap: 4px; height: 84px;
+  padding: 10px 11px; margin-bottom: 14px;
+  background: var(--sunken); border-radius: 9px;
+}
+.lp-mock-row {
+  flex: 1; height: 100%; border-radius: 3px;
+  background: var(--crop); transform-origin: bottom;
+  animation: sow 0.34s cubic-bezier(0.2, 0.8, 0.3, 1) backwards;
+}
+.lp-mock-row.is-track { background: var(--track); opacity: 0.32; }
+.lp-mock-figs { display: grid; grid-template-columns: repeat(3, 1fr); gap: 9px; }
+.lp-mock-fig { background: var(--sunken); border-radius: 9px; padding: 9px 10px; }
+.lp-mock-fig-k {
+  display: block; font: 600 10.5px var(--mono); letter-spacing: 0.08em;
+  text-transform: uppercase; color: var(--ink-3); margin-bottom: 3px;
+}
+.lp-mock-fig-v { font-size: 16px; font-weight: 700; color: var(--ink); }
+
+/* Картка, що висить над макетом. На вузькому екрані вона сідає всередину:
+   назовні її нікуди повісити, і вона лізла б за край сторінки. */
+.lp-float {
+  position: absolute; right: -14px; bottom: -16px;
+  display: flex; align-items: center; gap: 10px;
+  padding: 10px 13px; border-radius: 11px;
+  background: var(--panel); border: 1px solid var(--line);
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.12);
+}
+.lp-float-i {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 30px; height: 30px; border-radius: 9px; flex-shrink: 0;
+  color: var(--track); background: var(--track-soft);
+}
+.lp-float-t { display: flex; flex-direction: column; line-height: 1.3; }
+.lp-float-t i { font-style: normal; font-family: var(--mono); font-size: 10.5px; color: var(--ink-3); }
+.lp-float-t b { font-size: 13px; font-weight: 650; color: var(--ink); }
+
+/* ── Числа ─────────────────────────────────────────────── */
+.lp-facts {
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 6px; padding: clamp(16px, 2.5vw, 26px);
+  background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius);
+}
+.lp-fact { text-align: center; padding: 8px 6px; }
+.lp-fact-v {
+  display: block; font-size: clamp(24px, 3.4vw, 34px); font-weight: 700;
+  letter-spacing: -0.02em; color: var(--crop);
+  /* Цифри не стрибають, поки число набігає: табличні цифри тримають ширину. */
+  font-variant-numeric: tabular-nums;
+}
+.lp-fact-k { display: block; margin-top: 4px; font-size: 12.5px; color: var(--ink-2); line-height: 1.4; }
+.lp-facts-note {
+  margin: 12px 0 0; text-align: center; font-size: 12.5px; color: var(--ink-3);
+}
+.lp-facts-note code { font-family: var(--mono); font-size: 12px; color: var(--ink-2); }
+
+/* ── Розділи ───────────────────────────────────────────── */
+.lp-eyebrow {
+  display: inline-flex; align-items: center; gap: 9px; margin-bottom: 12px;
+  font: 600 11px var(--mono); letter-spacing: 0.12em; text-transform: uppercase;
+  color: var(--ink-3);
+}
+.lp-eyebrow.is-mid { justify-content: center; }
+.lp-eyebrow-n {
+  display: inline-flex; align-items: center; justify-content: center;
+  min-width: 22px; height: 22px; padding: 0 6px; border-radius: 7px;
+  color: var(--crop); background: var(--crop-soft);
+}
+.lp-h2 {
+  margin: 0 0 10px; font-size: clamp(23px, 3vw, 32px); font-weight: 700;
+  letter-spacing: -0.025em; line-height: 1.15; color: var(--ink);
+}
+.lp-sub { margin: 0 0 26px; max-width: 600px; font-size: 15px; line-height: 1.6; color: var(--ink-2); }
+
+.lp-grid {
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 13px;
+}
+.lp-card {
+  height: 100%; padding: 18px;
+  background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius);
+}
+.lp-card-i {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 36px; height: 36px; border-radius: 10px; margin-bottom: 12px;
+  color: var(--crop); background: var(--crop-soft);
+}
+.lp-card-h { margin: 0 0 7px; font-size: 16px; font-weight: 650; letter-spacing: -0.01em; color: var(--ink); }
+.lp-card-t { margin: 0; font-size: 13.5px; line-height: 1.55; color: var(--ink-2); }
+
+.lp-steps { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 13px; }
+.lp-step {
+  height: 100%; padding: 18px;
+  background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius);
+}
+.lp-step-n {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 30px; height: 30px; border-radius: 9px; margin-bottom: 12px;
+  font: 700 14px var(--mono); color: var(--on-crop); background: var(--crop);
+}
+
+.lp-split { display: grid; grid-template-columns: 0.9fr 1.1fr; gap: clamp(22px, 4vw, 48px); align-items: start; }
+.lp-list { margin: 0; padding: 0; list-style: none; display: grid; gap: 9px; }
+.lp-list li {
+  display: flex; align-items: flex-start; gap: 11px;
+  padding: 13px 15px; font-size: 14px; line-height: 1.5; color: var(--ink);
+  background: var(--panel); border: 1px solid var(--line); border-radius: 10px;
+}
+/* Галочка намальована рамкою, а не символом шрифта: знак у різних шрифтах
+   стоїть на різній висоті й то сідає нижче рядка, то не малюється зовсім. */
+.lp-list li::before {
+  content: ''; flex-shrink: 0; width: 9px; height: 15px; margin: 1px 3px 0 0;
+  border: solid var(--crop); border-width: 0 2.2px 2.2px 0;
+  transform: rotate(40deg);
+}
+
+/* ── Питання ───────────────────────────────────────────── */
+.lp-faq { display: grid; gap: 9px; }
+.lp-q { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; }
+.lp-q.is-open { border-color: var(--crop); }
+.lp-q-head {
+  display: flex; align-items: center; justify-content: space-between; gap: 14px;
+  width: 100%; padding: 15px 17px; background: none; border: none; cursor: pointer;
+  text-align: left; font: 650 14.5px var(--sans); color: var(--ink);
+}
+.lp-q-head i {
+  flex-shrink: 0; font-style: normal; font-family: var(--mono); font-size: 18px;
+  line-height: 1; color: var(--crop);
+}
+.lp-q-body {
+  margin: 0; padding: 0 17px 16px; font-size: 13.5px; line-height: 1.6; color: var(--ink-2);
+}
+
+/* ── Останнє слово ─────────────────────────────────────── */
+.lp-end {
+  text-align: center; padding: clamp(28px, 4vw, 44px) clamp(18px, 3vw, 32px);
+  background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius);
+}
+.lp-end .lp-sub { margin: 0 auto 22px; }
+
+.lp-foot { border-top: 1px solid var(--line); padding: 22px 0 30px; }
+.lp-foot-row {
+  display: flex; align-items: center; justify-content: space-between; gap: 14px;
+  flex-wrap: wrap; margin-bottom: 12px;
+}
+.lp-foot-note { margin: 0; font-size: 12.5px; line-height: 1.55; color: var(--ink-3); max-width: 720px; }
+
+/* ── Поява при прокручуванні ───────────────────────────── */
+/* Рух один і той самий, різниця лише в тому, звідки: розділи підіймаються,
+   макет приїжджає збоку. Без спостерігача (сервер, старий браузер) вміст уже
+   видимий — клас is-in просто ніколи не знімається. */
+.lp-rise, .lp-rise-side {
+  opacity: 0; transition: opacity 0.5s ease, transform 0.5s cubic-bezier(0.2, 0.8, 0.3, 1);
+}
+.lp-rise { transform: translateY(14px); }
+.lp-rise-side { transform: translateX(22px); }
+.lp-rise.is-in, .lp-rise-side.is-in { opacity: 1; transform: none; }
+
+@media (max-width: 900px) {
+  .lp-hero-grid, .lp-split { grid-template-columns: 1fr; }
+  .lp-links { display: none; }
+  .lp-nav-acts { margin-left: auto; }
+  .lp-float { right: 8px; bottom: -14px; }
+}
+@media (max-width: 460px) {
+  .lp-wide-only { display: none; }
+  .lp-logo-t i { display: none; }
+  .lp-mock-figs { grid-template-columns: 1fr; }
+  .lp-float { position: static; margin-top: 12px; }
+  .lp-cta { width: 100%; }
+}
+
+/* ── Вхід на весь екран ────────────────────────────────────────────────────
+   Дві половини: ліва каже, куди людина потрапила й що дає акаунт, права —
+   сама форма. Ліва тут не оздоба: по цей екран приходять із питанням «чому
+   в мене просять пошту», і відповідь мусить стояти поруч із полем. */
+
+.au {
+  min-height: 100vh; background: var(--bg);
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  padding: clamp(14px, 3vw, 34px);
+}
+.au-top {
+  width: 100%; max-width: 940px; display: flex; align-items: center;
+  justify-content: space-between; gap: 12px; margin-bottom: 14px;
+}
+.au-card {
+  width: 100%; max-width: 940px; display: grid; grid-template-columns: 0.95fr 1.05fr;
+  background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius);
+  overflow: hidden; box-shadow: 0 10px 34px rgba(0, 0, 0, 0.11);
+}
+
+.au-side {
+  padding: clamp(22px, 3vw, 34px);
+  background: var(--crop-soft); border-right: 1px solid var(--line);
+  display: flex; flex-direction: column; gap: 16px;
+}
+.au-side-brand { display: flex; align-items: center; gap: 11px; }
+.au-side-badge {
+  align-self: flex-start; padding: 5px 11px; border-radius: 999px;
+  font: 600 10.5px var(--mono); letter-spacing: 0.08em; text-transform: uppercase;
+  color: var(--crop); background: var(--panel); border: 1px solid var(--crop);
+}
+.au-side-say { animation: lift 0.4s ease backwards; }
+.au-side-h {
+  margin: 0 0 8px; font-size: clamp(20px, 2.6vw, 26px); font-weight: 700;
+  letter-spacing: -0.02em; line-height: 1.15; color: var(--ink);
+}
+.au-side-t { margin: 0; font-size: 14px; line-height: 1.6; color: var(--ink-2); }
+.au-gains { margin: 0; padding: 0; list-style: none; display: grid; gap: 10px; }
+.au-gains li {
+  display: flex; align-items: center; gap: 11px;
+  font-size: 13.5px; line-height: 1.45; color: var(--ink);
+  animation: lift 0.4s ease backwards;
+}
+.au-gain-i {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 28px; height: 28px; border-radius: 9px; flex-shrink: 0;
+  color: var(--crop); background: var(--panel); border: 1px solid var(--line);
+}
+.au-side-foot {
+  display: flex; align-items: center; gap: 9px; margin: auto 0 0;
+  font-size: 12.5px; line-height: 1.45; color: var(--ink-3);
+}
+.au-side-foot svg { flex-shrink: 0; }
+
+.au-form { padding: clamp(22px, 3vw, 34px); }
+.au-h { margin: 0 0 3px; font-size: 22px; font-weight: 700; letter-spacing: -0.02em; color: var(--ink); }
+.au-h-sub { margin: 0 0 18px; font-size: 13px; color: var(--ink-3); }
+.au-seg { margin-bottom: 18px; }
+.au-form label { display: block; margin-bottom: 13px; font-size: 13px; color: var(--ink-2); }
+.au-form input {
+  display: block; width: 100%; margin-top: 5px;
+  padding: 10px 11px; font: 500 15px var(--sans);
+  color: var(--ink); background: var(--sunken);
+  border: 1px solid var(--line); border-radius: 8px;
+}
+.au-form input:focus {
+  outline: none; border-color: var(--crop); box-shadow: 0 0 0 3px var(--crop-soft);
+}
+.au-two { display: grid; grid-template-columns: 1fr 1fr; gap: 11px; }
+
+/* Поле пароля з оком. Око всередині поля, а не поруч: інакше воно забирає
+   ширину самого поля на телефоні. */
+.au-pw { position: relative; display: block; }
+.au-pw input { padding-right: 42px; }
+.au-eye {
+  position: absolute; right: 1px; top: 5px; bottom: 0; width: 38px;
+  display: flex; align-items: center; justify-content: center;
+  background: none; border: none; cursor: pointer; color: var(--ink-3);
+}
+.au-eye:hover { color: var(--crop); }
+
+/* Міра пароля — підказка, а не вимога: вимагає сервер, і вимагає рівно
+   вісім символів. */
+.au-meter { display: flex; align-items: center; gap: 10px; margin: -4px 0 14px; }
+.au-meter-bars { display: flex; gap: 4px; flex: 1; }
+.au-meter-bars i {
+  flex: 1; height: 4px; border-radius: 2px; background: var(--line);
+}
+.au-meter-bars i.is-on { background: var(--crop); }
+.au-meter-k { font-family: var(--mono); font-size: 11.5px; color: var(--ink-3); }
+
+.au-err { margin: 0 0 14px; }
+.au-go { width: 100%; min-height: 46px; }
+.au-switch { margin: 16px 0 0; text-align: center; font-size: 13px; color: var(--ink-3); }
+
+@media (max-width: 900px) {
+  .au-card { grid-template-columns: 1fr; }
+  /* Половина з поясненням іде під форму: на телефоні першим екраном має бути
+     те, що роблять, а не те, що читають. */
+  .au-side { order: 2; border-right: none; border-top: 1px solid var(--line); }
+  .au-form { order: 1; }
+  .au-side-foot { margin-top: 4px; }
+}
+@media (max-width: 460px) {
+  .au-two { grid-template-columns: 1fr; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .lp-rise, .lp-rise-side { transition: none; opacity: 1; transform: none; }
+  .lp-mock-row, .au-side-say, .au-gains li { animation: none; }
 }

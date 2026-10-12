@@ -68,5 +68,13 @@ export async function init() {
     -- появи списку, має читатися без міграції, а новий — відкриватися й на
     -- старому клієнті, доки той не оновився.
     ALTER TABLE machines ADD COLUMN IF NOT EXISTS park JSONB;
+
+    -- Колісна база більше не обовʼязкова: вона лежить у park, у кожної
+    -- машини своя. Поки з цих колонок не було знято NOT NULL, комплект, у
+    -- якого головна машина без коліс (самий комбайн), не зберігався зовсім —
+    -- запит падав на обмеженні бази, і людина бачила «збій на сервері»
+    -- замість збереженого комплекту.
+    ALTER TABLE machines ALTER COLUMN track_width DROP NOT NULL;
+    ALTER TABLE machines ALTER COLUMN tyre_width DROP NOT NULL;
   `)
 }

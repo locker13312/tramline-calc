@@ -144,5 +144,20 @@ for (const tab of ['calc', 'rhythms']) {
   }
 }
 
+// Вітрина й вхід — окремі екрани на всю сторінку, і ламаються вони теж
+// окремо: на них інша розмітка, інші компоненти й жодного розрахунку.
+for (const screen of ['site', 'auth']) {
+  try {
+    const html = renderToString(<App startScreen={screen} />)
+    if (!html.includes('Колія')) throw new Error('немає назви на екрані')
+    if (/NaN|undefined/.test(html)) throw new Error('NaN або undefined у розмітці')
+    if (html.length < 800) throw new Error('майже порожній вивід')
+    console.log(`ok    екран «${screen}»  (${html.length} символів)`)
+  } catch (e) {
+    failed++
+    console.log(`CRASH екран «${screen}»: ${e.message}`)
+  }
+}
+
 console.log(failed ? `\n${failed} сценаріїв зламані` : '\nусі сценарії малюються')
 process.exit(failed ? 1 : 0)

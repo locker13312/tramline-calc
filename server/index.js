@@ -1,60 +1,12 @@
 import 'dotenv/config'
 
-import path from 'node:path'
-import { fileURLToPath } from 'node:url'
-import express from 'express'
 import { init } from './db.js'
-import authRoutes from './routes/auth.js'
-import savedRoutes from './routes/saved.js'
+import { createApp } from './app.js'
 
-const app = express()
-app.use(express.json({ limit: '256kb' }))
-
-// Найпростіший захист від перебору пароля: рахуємо спроби на IP у памʼяті
-// процесу. Для одного сервісу з однією копією цього досить, Redis тут зайвий.
-const attempts = new Map()
-const WINDOW = 15 * 60 * 1000
-app.use('/api/auth', (req, res, next) => {
-  if (req.method !== 'POST') return next()
-  const ip = req.ip || 'unknown'
-  const now = Date.now()
-  const list = (attempts.get(ip) || []).filter((t) => now - t < WINDOW)
-  if (list.length >= 20) {
-    return res.status(429).json({ error: 'Забагато спроб — зачекайте чверть години' })
-  }
-  list.push(now)
-  attempts.set(ip, list)
-  // Прибирання за собою: інакше запис лишався на кожен IP, що колись сюди
-  // заходив, і Map росла весь час роботи процесу, хоч спроби давно застаріли.
-  if (attempts.size > 500) {
-    for (const [key, times] of attempts) {
-      if (times.every((t) => now - t >= WINDOW)) attempts.delete(key)
-    }
-  }
-  next()
-})
-
-// Номер коміту, який зараз живе на проді. Render кладе його в оточення сам.
-// Без цього «чи задеплоїлось?» доводиться вгадувати по хешу бандла, а він
-// змінюється не від кожного коміту.
-const startedAt = new Date().toISOString()
-app.get('/api/health', (req, res) => res.json({
-  ok: true,
-  commit: (process.env.RENDER_GIT_COMMIT || 'local').slice(0, 7),
-  startedAt,
-}))
-app.use('/api/auth', authRoutes)
-app.use('/api', savedRoutes)
-
-// Зібраний фронтенд роздає той самий процес — окремий статичний сервіс тут
-// нічого не дав би, крім другого деплою.
-const here = path.dirname(fileURLToPath(import.meta.url))
-const dist = path.join(here, '..', 'dist')
-app.use(express.static(dist))
-app.get(/^\/(?!api\/).*/, (req, res) => res.sendFile(path.join(dist, 'index.html')))
-
+// Точка входу: оточення, схема бази, порт. Самі маршрути — в `app.js`, щоб
+// перевірка піднімала рівно той застосунок, що тут слухає порт.
 const PORT = process.env.PORT || 3002
 
 init()
-  .then(() => app.listen(PORT, '0.0.0.0', () => console.log(`Колія на :${PORT}`)))
+  .then(() => createApp().listen(PORT, '0.0.0.0', () => console.log(`Колія на :${PORT}`)))
   .catch((e) => { console.error('База не піднялась:', e.message); process.exit(1) })

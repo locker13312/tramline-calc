@@ -1,9 +1,9 @@
 import { THEMES, nextTheme } from '../lib/look'
 import {
   TramlineIcon, DrillIcon, MachineIcon, FieldIcon, MoneyIcon,
-  SavedIcon, BookIcon, PersonIcon, MoonIcon, SunIcon, AutoThemeIcon, ExitIcon,
+  SavedIcon, BookIcon, PersonIcon, MoonIcon, SunIcon, ExitIcon,
+  InfoIcon,
 } from './icons'
-import Appearance from './Appearance'
 
 // ── Сайдбар ───────────────────────────────────────────────────────────────
 //
@@ -30,8 +30,8 @@ export const SECTIONS = [
   { key: 'money', label: 'Гроші', icon: MoneyIcon },
 ]
 
-const THEME_ICON = { dark: MoonIcon, light: SunIcon, auto: AutoThemeIcon }
-const THEME_WORD = { dark: 'Темна', light: 'Світла', auto: 'Авто' }
+const THEME_ICON = { dark: MoonIcon, light: SunIcon }
+const THEME_WORD = { dark: 'Темна', light: 'Світла' }
 
 function Item({ icon: Icon, label, on, badge, onClick, title }) {
   return (
@@ -51,9 +51,9 @@ function Item({ icon: Icon, label, on, badge, onClick, title }) {
 
 export default function Sidebar({
   mark, tab, setTab, section, setSection, machineCount, now,
-  user, checked, onAccount, onLogout, look, setLook, menu, setMenu,
+  user, checked, onAccount, onLogout, onHome, look, setLook, menu, setMenu,
 }) {
-  const ThemeIcon = THEME_ICON[look.theme] ?? AutoThemeIcon
+  const ThemeIcon = THEME_ICON[look.theme] ?? SunIcon
   const go = (key) => { setTab(key); setMenu(false) }
 
   return (
@@ -109,7 +109,14 @@ export default function Sidebar({
         <div className="side-group">
           <div className="side-h">сервіс</div>
           <nav className="side-nav">
-            <Appearance look={look} setLook={setLook} />
+            {/* Вітрина лишається під рукою: на ній пояснено, що програма
+                рахує й чого не рахує, і саме туди відсилають того, хто
+                питає «а це взагалі про моє поле?». */}
+            {onHome && (
+              <Item icon={InfoIcon} label="Про Колію"
+                onClick={() => { onHome(); setMenu(false) }}
+                title="Сторінка про програму: що рахує, як почати, часті питання" />
+            )}
           </nav>
         </div>
 
@@ -165,7 +172,7 @@ export default function Sidebar({
             title={`Тема: ${THEMES.find((t) => t.key === look.theme)?.title}. Натисніть, щоб перемкнути`}
           >
             <ThemeIcon className="btn-i" />
-            {THEME_WORD[look.theme] ?? 'Авто'}
+            {THEME_WORD[look.theme] ?? 'Світла'}
           </button>
 
           {user ? (
