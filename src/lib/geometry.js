@@ -155,28 +155,39 @@ export function minGap(offsets) {
   return Number.isFinite(g) ? mm(g) : 0
 }
 
-// Сліди трактора сівалки всередині її ж проходу. Колія тут ще не нарізана —
-// вона тільки нарізається, — але слід трактора лягає на кожному проході, і
-// на ньому ґрунт ущільнений. Деякі господарства глушать сошники, що йдуть
-// просто по цьому сліду: зерно в ущільненому сліді сходить гірше.
-export function tractorBands(tractor, drillWidthValue) {
-  const t = tractor && typeof tractor === 'object' ? tractor : {}
-  const trackWidth = Number(t.trackWidth)
-  const tyreWidth = Number(t.tyreWidth)
-  const W = Number(drillWidthValue)
-  // Запас сюди приходить і з форми, і з машини, тож нечислове значення тут
-  // не дивина — дивина пустити його далі: NaN у межах смуги не глушив нічого
-  // й малював на схемі смугу нізвідки нікуди.
-  const m = Number(t.margin)
-  const margin = Number.isFinite(m) && m >= 0 ? Math.min(m, LIMITS.margin) : AUTO_MARGIN
-
-  if (!Number.isFinite(trackWidth) || !(trackWidth > 0)) return []
-  if (!Number.isFinite(tyreWidth) || !(tyreWidth > 0)) return []
-  if (!Number.isFinite(W) || !(W > 0)) return []
-
-  const half = tyreWidth / 2 + margin
-  return [-1, 1].map((sign) => {
-    const centre = W / 2 + sign * trackWidth / 2
-    return { centre: mm(centre), from: mm(centre - half), to: mm(centre + half) }
-  })
+// ── Нахльост ──────────────────────────────────────────────────────────────
+//
+// Між сусідніми проходами сівалки має лишитися рівно міжряддя — ні більше,
+// ні менше. Без підрулювання в це не влучити: механізатор веде по маркеру й
+// на око, і помилка на 20 см в один бік дає пропуск (смуга без сходів,
+// видна з дороги), а в другий — здвоєний рядок.
+//
+// Тому роблять інакше й навмисно: заходять на вже засіяне з нахльостом на
+// кілька сошників, а ці крайні сошники закривають. Пропуск стає неможливим
+// у принципі, бо прохід заходить на сусіда, а здвоєного рядка немає, бо
+// закриті сошники нічого не кладуть. Перший прохід поля сіє всіма — заходити
+// йому ще нікуди.
+//
+// Для розрахунку це міняє одне, але головне: сівалка переставляється не на
+// свій захват, а на крок — захват мінус нахльост. Саме крок, а не захват,
+// має вкладатися в захват машини цілим числом разів, і саме ним міряються
+// проходи по полю. Межа нахльоста — щоб сіяло хоч два сошники: сівалка, яка
+// їде сама по собі закритою, це вже не сівалка.
+export function overlapOf(input, geo) {
+  const offsets = geo?.offsets ?? []
+  const want = Math.round(Number(input?.overlapRows))
+  const max = Math.max(0, offsets.length - 2)
+  const rows = Number.isFinite(want) && want > 0 ? Math.min(want, max) : 0
+  // Межа нахльоста по краю вже засіяного: половина проміжку між останнім
+  // закритим сошником і першим, що сіє. У рівномірної сівалки це рівно
+  // `сошників × міжряддя`, у довільної розкладки — те саме за змістом.
+  const width = rows > 0 ? mm((offsets[rows - 1] + offsets[rows]) / 2) : 0
+  return {
+    rows,
+    width,
+    step: mm((geo?.width ?? 0) - width),
+    // Про що не сказати не можна: людина просила більший нахльост, ніж
+    // сівалка може дати.
+    clamped: Number.isFinite(want) && want > max ? want : 0,
+  }
 }

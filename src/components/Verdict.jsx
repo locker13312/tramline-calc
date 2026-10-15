@@ -90,6 +90,13 @@ export default function Verdict({ result, serpentine = false }) {
             дивіться список проходів по полю.{' '}
           </>
         )}
+        {result.overlapRows > 0 && (
+          <>
+            Окремо від колії на кожному проході, крім найпершого на полі,
+            закриті сошники <b>{rangeText(result.overlapClosed)}</b> — це нахльост,
+            вони йдуть по вже засіяному, і площі під ними не губиться.{' '}
+          </>
+        )}
         Разом за цикл глушиться{' '}
         <b>{result.disabledPerCycle}</b> {plural(result.disabledPerCycle, 'сошник', 'сошники', 'сошників')} із{' '}
         {result.rowsPerCycle} — це {num(result.lossPct, 1)} % недосіяної площі.{forWhom}

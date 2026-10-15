@@ -53,17 +53,19 @@ test('свідомо вимкнена машина не вважається н�
     'про свідомо вимкнену машину попереджати нема про що')
 })
 
-test('незаповнена машина не ламає навіть відмову', () => {
-  // Головна машина не ділиться на сівалку — відповіді немає; попередження про
-  // незаповнену другу машину мусить дожити до цієї відмови, бо часто саме
-  // воно і є причиною.
+test('незаповнена машина не губиться в припущенні', () => {
+  // Головна машина не ділиться на сівалку, тож відповідь береться з
+  // припущення. Попередження про незаповнену другу машину мусить дожити й
+  // до неї: часто саме воно і є причиною того, що ритм не склався.
   const r = computeTramlines({
     ...grain,
     machines: [sprayer({ width: 20, base: true }), { id: 'c', label: 'Комбайн', width: 0, axles: [] }],
   })
-  assert.equal(r.ok, false)
+  assert.equal(r.ok, true)
+  assert.ok(r.assumed)
   assert.ok(r.warnings.length >= 2)
-  assert.ok(r.warnings.some((w) => w.includes('Комбайн')))
+  assert.ok(r.warnings.some((w) => w.includes('Комбайн')),
+    `про незаповнену машину не сказано: ${JSON.stringify(r.warnings)}`)
 })
 
 // Явний захват діяв і в рівномірному режимі: задав 2,4 м для своєї розкладки,
@@ -158,16 +160,14 @@ test('розкладка без жодного числа повертає до 
   assert.equal(r.rows, 24)
 })
 
-// Запас приходив у смугу як є, і NaN робив смугу «нізвідки нікуди»: вона не
-// глушила нічого, а на схемі малювалася порожнечею.
-test('зіпсований запас трактора сівалки не робить смугу з NaN', () => {
-  const r = computeTramlines({
-    ...grain, machines: [sprayer()],
-    drillTractor: { trackWidth: 1.8, tyreWidth: 0.5, margin: NaN, closeOwnTracks: true },
-  })
-  assert.equal(r.ok, true)
-  for (const b of r.ownBands) {
-    assert.ok(Number.isFinite(b.from) && Number.isFinite(b.to), `смуга ${b.from}–${b.to}`)
+// Нахльост рахується в метрах від позицій сошників, і зіпсоване число
+// робило крок NaN: далі весь розрахунок ішов у нікуди.
+test('зіпсований нахльост не робить крок NaN', () => {
+  for (const overlapRows of [NaN, Infinity, -5, 2.4, null, undefined, true]) {
+    const r = computeTramlines({ ...grain, machines: [sprayer()], overlapRows })
+    assert.ok(Number.isFinite(r.step) && r.step > 0, `нахльост ${overlapRows}: крок ${r.step}`)
+    assert.ok(Number.isInteger(r.overlapRows) && r.overlapRows >= 0,
+      `нахльост ${overlapRows} дав ${r.overlapRows}`)
   }
 })
 
@@ -183,15 +183,12 @@ test('нескінченна сторона поля — це не поле, а 
   }
 })
 
-// Прапорець стоїть, а колії чи шини трактора немає: сошники під його слідом
-// не глухли, і про це ніде не було сказано — виглядало як невидимий збій.
-test('порожній трактор сівалки з прапорцем дає попередження, а не тишу', () => {
-  const r = computeTramlines({
-    ...grain, machines: [sprayer()],
-    drillTractor: { trackWidth: 0, tyreWidth: 0.5, closeOwnTracks: true },
-  })
+// Нахльост більший за сівалку обрізався молча, а далі відповідь бралася з
+// припущення — і в ній від заданого числа не лишалося й слова.
+test('обрізаний нахльост не губиться в припущенні', () => {
+  const r = computeTramlines({ ...grain, machines: [sprayer()], overlapRows: 99 })
   assert.equal(r.ok, true)
-  assert.equal(r.ownBands.length, 0)
-  assert.ok(r.warnings.some((w) => w.includes('слід трактора')),
+  assert.ok(r.overlapRows <= 22, `нахльост ${r.overlapRows} при 24 сошниках`)
+  assert.ok(r.warnings.some((w) => w.includes('більше, ніж сівалка може віддати')),
     `мусить бути попередження: ${JSON.stringify(r.warnings)}`)
 })

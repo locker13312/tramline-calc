@@ -654,21 +654,6 @@ body {
 .saved-name { font-weight: 600; font-size: 14.5px; }
 .saved-actions { display: flex; gap: 7px; flex-shrink: 0; }
 
-/* ── Довідник ─────────────────────────────────────────── */
-.table-scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; }
-.rhythm-table { border-collapse: collapse; font-family: var(--mono); font-size: 13px; }
-.rhythm-table th, .rhythm-table td {
-  border: 1px solid var(--line); padding: 7px 11px; text-align: center; white-space: nowrap;
-}
-.rhythm-table thead th, .rhythm-table tbody th {
-  background: var(--sunken); color: var(--ink-2); font-weight: 600; font-size: 12px;
-}
-.rhythm-table thead th:first-child { text-align: left; }
-.rhythm-table tbody th { text-align: right; }
-.rhythm-table td { color: var(--crop); font-weight: 600; }
-.rhythm-table td.is-async { color: var(--track); }
-.rhythm-table td.is-none { color: var(--ink-3); font-weight: 400; }
-.rhythm-table td.is-here { outline: 2px solid var(--crop); outline-offset: -2px; background: var(--crop-soft); }
 
 @media (max-width: 900px) {
   .save-row { flex-direction: column; }
@@ -1474,3 +1459,65 @@ body {
 /* Напрямок проходу в списку по полю. Колонка вузька й читається скоса —
    стрілка з одним словом, а не речення. */
 .pt-dir { white-space: nowrap; font-family: var(--mono); font-size: 12px; }
+
+/* ── Способи засіяти поле ───────────────────────────────────────────────────
+   Карточка на спосіб: угорі ключ (робоча ширина × ритм, нахльост), під ним
+   чотири числа, далі причини й окремо початок та кінець поля. Той, що стоїть
+   у формі зараз, підсвічений — інакше в списку з пʼяти схожих карток не
+   видно, котру вже взяли. */
+.ways { display: flex; flex-direction: column; gap: 12px; }
+.way {
+  border: 1px solid var(--line); border-radius: 11px;
+  background: var(--sunken); padding: 12px 13px 13px;
+}
+.way.is-on { border-color: var(--crop); background: var(--crop-soft); }
+.way-head { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.way-n {
+  font-family: var(--mono); font-size: 11.5px; letter-spacing: 0.08em;
+  text-transform: uppercase; color: var(--ink-3);
+}
+.way-key { font-family: var(--mono); font-size: 14px; font-weight: 600; flex: 1 1 auto; }
+.way-on {
+  font-size: 12px; font-family: var(--mono); color: var(--crop);
+  white-space: nowrap;
+}
+.way-figs {
+  display: grid; grid-template-columns: repeat(4, 1fr); gap: 1px;
+  background: var(--line); border: 1px solid var(--line);
+  border-radius: 9px; overflow: hidden; margin: 11px 0 0;
+}
+.way-fig { background: var(--panel); padding: 9px 10px; }
+.way-fig-k {
+  display: block; font-size: 10.5px; font-family: var(--mono);
+  letter-spacing: 0.06em; text-transform: uppercase; color: var(--ink-3);
+}
+.way-fig-v {
+  display: block; font-family: var(--mono); font-size: 16px; font-weight: 650;
+  margin: 2px 0 1px;
+}
+.way-fig-s { display: block; font-size: 11.5px; color: var(--ink-2); line-height: 1.3; }
+.way-why {
+  margin: 11px 0 0; padding-left: 17px;
+  font-size: 13px; line-height: 1.5; color: var(--ink-2);
+}
+.way-why li { margin-bottom: 4px; }
+.way-ends {
+  display: grid; grid-template-columns: 1fr 1fr; gap: 11px;
+  margin-top: 11px; padding-top: 11px; border-top: 1px solid var(--line);
+}
+.way-end b {
+  display: block; font-size: 11px; font-family: var(--mono);
+  letter-spacing: 0.07em; text-transform: uppercase; color: var(--ink-3);
+  margin-bottom: 4px;
+}
+.way-end p { margin: 0 0 5px; font-size: 13px; line-height: 1.5; color: var(--ink-2); }
+
+@media (max-width: 720px) {
+  .way-figs { grid-template-columns: repeat(2, 1fr); }
+  .way-ends { grid-template-columns: 1fr; }
+}
+.way-served {
+  font-size: 11.5px; font-family: var(--mono); color: var(--crop);
+  white-space: nowrap;
+}
+.way-served.is-part { color: var(--warn); }

@@ -1,5 +1,6 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useDeferredValue, useEffect, useMemo, useRef, useState } from 'react'
 import { computeTramlines, fieldPlan, suggestTracks, coulterOffsets, AUTO_MARGIN } from '../lib/tramline'
+import { solutions } from '../lib/solutions'
 import { economics } from '../lib/economics'
 import { CROPS, CHASSIS_PRESETS } from '../lib/presets'
 import { defaultMachines } from '../lib/machines'
@@ -13,6 +14,7 @@ import FieldPlan from './FieldPlan'
 import FieldDiagram from './FieldDiagram'
 import PassPlan from './PassPlan'
 import PassList from './PassList'
+import Ways from './Ways'
 import Money from './Money'
 
 // Чому відповіді немає — одним рядком. Раніше інтерфейс вгадував це сам, по
@@ -50,8 +52,6 @@ export default function Calculator({
   // зовсім — тобто в збереженій формі старого вигляду.
   const machines = input.machines ?? defaultMachines()
   const setMachines = (list) => set('machines', list)
-  const tractor = input.drillTractor ?? {}
-  const setTractor = (change) => set('drillTractor', { ...tractor, ...change })
 
   const result = useMemo(() => computeTramlines({ ...input, machines }), [input, machines])
 
@@ -68,6 +68,26 @@ export default function Calculator({
   )
 
   const advice = useMemo(() => suggestTracks({ ...input, machines }), [input, machines])
+
+  // Способи засіяти це поле наявною технікою. Перебір повний: кілька
+  // десятків повних розрахунків, і на великому парку це вже десятки
+  // мілісекунд. Тому він іде за відкладеним станом — головна відповідь
+  // міняється під пальцями, а список способів наздоганяє кадром пізніше.
+  const lazy = useDeferredValue(input)
+  const ways = useMemo(
+    () => solutions({ ...lazy, machines: lazy.machines ?? machines }, {
+      fieldWidth: lazy.fieldWidth, fieldLength: lazy.fieldLength,
+      headland: lazy.headland, serpentine: lazy.serpentine,
+    }),
+    [lazy, machines],
+  )
+
+  // Який спосіб стоїть у формі зараз: по ньому підсвічується картка. Ключ той
+  // самий, що й у пошуку, тож збіг не випадковий.
+  const activeWay = `${result.ok ? result.baseWidth : 0}-${result.overlapRows || 0}-${input.halfStart ? 'half' : 'full'}`
+
+  // Поставити спосіб у форму: рівно ті поля, які він міняє.
+  const takeWay = (patch) => setInput((st) => ({ ...st, ...patch }))
 
   const money = useMemo(
     () => economics(plan, result, {
@@ -129,7 +149,6 @@ export default function Calculator({
             <Drill
               input={input} set={set} onNum={onNum}
               pickCrop={pickCrop} result={result}
-              tractor={tractor} setTractor={setTractor}
             />
           )}
 
@@ -210,18 +229,7 @@ export default function Calculator({
         </form>
 
         <div className="stack">
-          {!result.ok && result.suggestions && (
-            <Fixes
-              s={result.suggestions}
-              rowSpacing={input.rowSpacing}
-              rows={result.rows}
-              boomWidth={baseWidth}
-              onPick={(patch) => {
-                if (patch.rows != null) set('rows', patch.rows)
-                if (patch.width != null && baseId) pickForMachine(baseId, { width: patch.width })
-              }}
-            />
-          )}
+          <Ways list={ways} onTake={takeWay} active={activeWay} />
 
           {result.ok && plan && !plan.tooSmall && !plan.tooBig && (
             <div className="figures">
@@ -307,7 +315,7 @@ export default function Calculator({
 // випадків. Але розкладка буває й іншою: знята секція, подвійне міжряддя під
 // слід трактора, пари сошників. Тому під рівномірною формою є друга, де
 // позиції задаються списком, і решта розрахунку про цю різницю не знає.
-function Drill({ input, set, onNum, pickCrop, result, tractor, setTractor }) {
+function Drill({ input, set, onNum, pickCrop, result }) {
   // Режим тримає форма, а не розрахунок. Якщо дивитися на input.coulters, то
   // стерти текст у полі означало б випасти назад у рівномірну сівалку разом
   // із усім набраним: половина розкладки — це ще не рівномірна сівалка, це
@@ -360,6 +368,10 @@ function Drill({ input, set, onNum, pickCrop, result, tractor, setTractor }) {
   const marginNow = manual && Number.isFinite(Number(input.margin))
     ? Number(input.margin)
     : AUTO_MARGIN
+
+  // Нахльост рахуємо від того, що справді взяв розрахунок, а не від поля
+  // форми: він обрізаний по сівалці, і показувати треба обрізане число.
+  const overlap = result.overlapRows || 0
 
   return (
     <div className="panel">
@@ -481,40 +493,40 @@ function Drill({ input, set, onNum, pickCrop, result, tractor, setTractor }) {
         </p>
       </div>
 
+      {/* ── Нахльост ─────────────────────────────────────────────────────
+          Між проходами має лишитися рівно міжряддя, а без підрулювання в це
+          не влучити: на око виходить або пропуск, або здвоєний рядок. Тому
+          заходять на засіяне навмисно й закривають крайні сошники — пропуск
+          стає неможливим, а двічі не сіється нічого. Перший прохід поля сіє
+          всіма: заходити йому ще нікуди. */}
       <div className="maxle">
-        <div className="maxle-h">трактор сівалки</div>
-        <label>
-          Готова ходова
-          <select value="" onChange={(e) => {
-            const p = CHASSIS_PRESETS.find((x) => x.key === e.target.value)
-            if (p) setTractor({ trackWidth: p.trackWidth, tyreWidth: p.tyreWidth })
-          }}>
-            <option value="" disabled>— підставити —</option>
-            {CHASSIS_PRESETS.map((p) => <option key={p.key} value={p.key}>{p.label}</option>)}
-          </select>
-        </label>
-        <div className="duo">
-          <label>
-            Між колесами, м
-            <NumField min="0" step="0.05" value={tractor.trackWidth}
-              onValue={(v) => setTractor({ trackWidth: v })} />
-          </label>
-          <label>
-            Шина, м
-            <NumField min="0" step="0.01" value={tractor.tyreWidth}
-              onValue={(v) => setTractor({ tyreWidth: v })} />
-          </label>
-        </div>
+        <div className="maxle-h">нахльост на засіяне</div>
         <label className="check">
-          <input type="checkbox" checked={!!tractor.closeOwnTracks}
-            onChange={(e) => setTractor({ closeOwnTracks: e.target.checked })} />
-          Глушити сошники під власним слідом
+          <input type="checkbox" checked={overlap > 0}
+            onChange={(e) => set('overlapRows', e.target.checked ? 2 : 0)} />
+          Заходити на вже засіяне
         </label>
-        <p className="note" style={{ margin: '8px 0 0' }}>
-          Колії тут ще немає — вона тільки нарізається. Але слід трактора лягає
-          на кожному проході, і зерно в ущільненому сліді сходить гірше. Глушать
-          його не всі: це мінус {tractor.closeOwnTracks ? '' : 'кілька '}сошників
-          на кожному проході, а не раз на цикл.
+        <label className={overlap > 0 ? undefined : 'is-muted'}>
+          Сошників у нахльості
+          <NumField min="0" max={Math.max(0, result.rows - 2)} step="1"
+            value={overlap > 0 ? overlap : null}
+            disabled={!(overlap > 0)}
+            placeholder="0 — стик рівно міжряддям"
+            onValue={(v) => set('overlapRows', v)} />
+        </label>
+        <div className="derived">
+          крок сівалки = {num(result.drillWidth)} м
+          {overlap > 0
+            ? ` − ${num(result.overlapWidth)} м = ${num(result.step)} м`
+            : ' (нахльоста немає)'}
+        </div>
+        <p className="note" style={{ margin: '0 0 2px' }}>
+          Сівалка переставляється не на свій захват, а на крок, і саме крок
+          має вкладатися в захват машини цілим числом разів. Площа від
+          нахльоста не губиться: рядки під закритими сошниками кладе сусідній
+          прохід. Платиться зайвими проходами — {overlap > 0
+            ? `їх на поле на ${num((result.overlapWidth / result.drillWidth) * 100, 0)} % більше`
+            : 'тим більше, чим більший нахльост'}.
         </p>
       </div>
     </div>
@@ -577,94 +589,6 @@ function Figure({ k, v, s }) {
       <div className="figure-k">{k}</div>
       <div className="figure-v">{v}</div>
       <div className="figure-s">{s}</div>
-    </div>
-  )
-}
-
-// ── Що робити, коли захвати не поєднуються ────────────────────────────────
-//
-// Порядок відповідей тут не випадковий. Штангу ніхто не міняє через колію,
-// тому першою йде та, що нічого не коштує: їхати наявною штангою вужче,
-// перекриваючи сусідній прохід. Далі — звузити сівалку. І аж потім
-// «купіть іншу машину», бо це не порада, а констатація.
-function Fixes({ s, rowSpacing, rows, boomWidth, onPick }) {
-  if (!s) return null
-  const working = s.working ?? []
-
-  return (
-    <div className="panel">
-      <h2>як із цього вийти</h2>
-
-      {working.length > 0 && (
-        <>
-          <p className="note" style={{ margin: '0 0 10px' }}>
-            Штанга лишається {num(boomWidth)} м — міняється робоча ширина: скільки
-            захоплює корисно, а решта йде в перекриття сусіднього проходу.
-            Крайні секції штанги на перекритті вимикають, щоб не лити двічі.
-          </p>
-          <div className="advice">
-            {working.map((o) => (
-              <button
-                key={o.width}
-                type="button"
-                className={`opt opt-act${o.off === 0 ? ' is-current' : ''}`}
-                onClick={() => onPick({ width: o.width, rows: o.rows })}
-              >
-                <span className="opt-v">{num(o.width)} м</span>
-                <span className="opt-t">
-                  {o.off === 0
-                    ? `сівалка без змін, ${o.k} прох.`
-                    : `сівалка ${o.rows} ${plural(o.rows, 'сошник', 'сошники', 'сошників')} із ${rows} (заглушити ${o.off} з краю), ${o.k} прох.`}
-                  {' · '}перекриття {num(o.overlap)} м ({num(o.overlapPct, 0)} %)
-                </span>
-                <span className="opt-go" aria-hidden="true">підставити →</span>
-              </button>
-            ))}
-          </div>
-          <p className="note" style={{ margin: '10px 0 0' }}>
-            Натисніть варіант — він підставиться у форму, і розрахунок покаже
-            проходи із сошниками.
-          </p>
-        </>
-      )}
-
-      {s.drills.length > 0 && (
-        <>
-          <p className="note" style={{ margin: '18px 0 10px' }}>
-            Сівалка, що ділить {num(boomWidth)} м рівно, без перекриття:
-          </p>
-          <div className="advice">
-            {s.drills.slice(0, 3).map((o) => (
-              <button
-                key={`${o.k}-${o.rows}`}
-                type="button"
-                className="opt opt-act"
-                onClick={() => onPick({ rows: o.rows })}
-              >
-                <span className="opt-v">{o.rows} сошників</span>
-                <span className="opt-t">× {num(rowSpacing)} м = {num(o.width)} м, {o.k} прох.</span>
-                <span className="opt-go" aria-hidden="true">підставити →</span>
-              </button>
-            ))}
-          </div>
-        </>
-      )}
-
-      {s.sprayerWidths.length > 0 && (
-        <>
-          <p className="note" style={{ margin: '18px 0 10px' }}>
-            Або інша машина під наявну сівалку:
-          </p>
-          <div className="advice">
-            {s.sprayerWidths.slice(0, 4).map((o) => (
-              <div key={o.k} className="opt">
-                <span className="opt-v">{num(o.width)} м</span>
-                <span className="opt-t">{o.k} прох. сівалки</span>
-              </div>
-            ))}
-          </div>
-        </>
-      )}
     </div>
   )
 }

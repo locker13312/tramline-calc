@@ -45,12 +45,12 @@ const KINDS = {
         track_width: lead?.axles?.[0]?.trackWidth ?? input.trackWidth,
         tyre_width: lead?.axles?.[0]?.tyreWidth ?? input.tyreWidth,
         margin: input.margin, spreader_width: 0, half_start: input.halfStart,
-        // Повний комплект одним JSON: машини, розкладка сошників, трактор.
+        // Повний комплект одним JSON: машини, розкладка сошників, нахльост.
         park: {
           machines: input.machines ?? null,
           coulters: input.coulters ?? null,
           drillWidth: input.drillWidth ?? null,
-          drillTractor: input.drillTractor ?? null,
+          overlapRows: input.overlapRows ?? null,
           // Чиє число запасу — системи чи господаря. Окремої колонки під
           // прапорець немає й не треба: без нього «запас 0,10» від системи
           // не відрізнити від такого самого, заданого вручну.
@@ -73,7 +73,7 @@ const KINDS = {
       if (park.machines) extra.machines = park.machines
       if (park.coulters) extra.coulters = park.coulters
       if (park.drillWidth) extra.drillWidth = park.drillWidth
-      if (park.drillTractor) extra.drillTractor = park.drillTractor
+      if (park.overlapRows != null) extra.overlapRows = Number(park.overlapRows) || 0
       if (park.marginManual != null) extra.marginManual = !!park.marginManual
       return { ...base, ...extra }
     },

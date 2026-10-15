@@ -47,6 +47,7 @@ export default function FieldDiagram({ result }) {
         <line x1={x(period)} y1={46} x2={x(period)} y2={62} className="d-boom" />
         <text x={x(period / 2)} y={40} className="d-label d-label-mid">
           цикл · {num(period)} м · {result.cycle} прох. сівалки
+          {result.overlapRows > 0 && ` · крок ${num(result.step)} м`}
         </text>
 
         {/* Проходи машин: кожна своїм кольором, по центру — вісь проходу */}
@@ -70,18 +71,24 @@ export default function FieldDiagram({ result }) {
           )
         })}
 
-        {/* Проходи сівалки */}
-        {result.passes.map((p, i) => (
-          <g key={p.n}>
-            <rect x={x(Math.max(p.from, 0))} y={bandTop}
-              width={(Math.min(p.to, period) - Math.max(p.from, 0)) * scale} height={bandH}
-              className={`d-pass ${i % 2 ? 'd-pass-alt' : ''} ${p.disabled.length ? 'd-pass-hit' : ''}`} />
-            <text x={x((Math.max(p.from, 0) + Math.min(p.to, period)) / 2)}
-              y={bandTop + bandH + 20} className="d-label d-label-mid">
-              прохід {p.n}{p.partial ? ' (половинний)' : ''}
-            </text>
-          </g>
-        ))}
+        {/* Проходи сівалки — кожен своєю новою землею, а не рамою: з
+            нахльостом рами налазять одна на одну, і намальовані рамами
+            проходи зливалися б у пляму. Нахльост підписаний окремо. */}
+        {result.passes.map((p, i) => {
+          const from = Math.max(p.newFrom ?? p.from, 0)
+          const to = Math.min(p.to, period)
+          if (to <= from) return null
+          return (
+            <g key={p.n}>
+              <rect x={x(from)} y={bandTop} width={(to - from) * scale} height={bandH}
+                className={`d-pass ${i % 2 ? 'd-pass-alt' : ''} ${p.disabled.length ? 'd-pass-hit' : ''}`} />
+              <text x={x((from + to) / 2)}
+                y={bandTop + bandH + 20} className="d-label d-label-mid">
+                прохід {p.n}{p.partial ? ' (половинний)' : ''}
+              </text>
+            </g>
+          )
+        })}
 
         {/* Смуги під колесами — кольором машини */}
         {result.strips.map((s, i) => (
@@ -96,6 +103,9 @@ export default function FieldDiagram({ result }) {
             const pos = p.from + o
             if (pos < -0.01 || pos > period + 0.01) return null
             const off = p.disabled.includes(m)
+            // Сошник нахльоста нічого не кладе, а стоїть точно там, де
+            // рядок сусіднього проходу: дві лінії в одному місці.
+            if (p.overlapClosed?.includes(m)) return null
             if (p.partial && p.sowingRows && !p.sowingRows.includes(m)) return null
             return (
               <line key={`${p.n}-${m}`} x1={x(pos)} y1={bandTop + 12} x2={x(pos)} y2={bandTop + bandH - 12}
@@ -121,7 +131,7 @@ export default function FieldDiagram({ result }) {
         {/* Лінійка по межах проходів сівалки */}
         <line x1={x(0)} y1={VB_H - 28} x2={x(period)} y2={VB_H - 28} className="d-ruler" />
         {Array.from({ length: result.cycle + 1 }, (_, i) => {
-          const pos = i * result.drillWidth
+          const pos = i * (result.step || result.drillWidth)
           return (
             <g key={i}>
               <line x1={x(pos)} y1={VB_H - 33} x2={x(pos)} y2={VB_H - 23} className="d-ruler" />
@@ -134,6 +144,12 @@ export default function FieldDiagram({ result }) {
       <div className="legend">
         <span><i className="sw sw-row" /> засіяний сошник</span>
         <span><i className="sw sw-off" /> вимкнений сошник</span>
+        {result.overlapRows > 0 && (
+          <span>
+            нахльост {num(result.overlapWidth)} м: сошники {result.overlapClosed.join(', ')}
+            {' '}закриті, рядки під ними кладе сусідній прохід
+          </span>
+        )}
         {ids.map((id) => (
           <span key={id}>
             <i className="sw sw-strip" style={{ background: colour(id) }} /> слід «{labelOf(id)}»

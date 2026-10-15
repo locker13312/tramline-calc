@@ -1,14 +1,15 @@
-import { useEffect, useState } from 'react'
+import { useDeferredValue, useEffect, useMemo, useState } from 'react'
 import { CROPS, DEFAULTS } from './lib/presets'
 import { defaultMachines, normaliseMachines } from './lib/machines'
 import { drillGeometry, resolveMargin, AUTO_MARGIN } from './lib/tramline'
+import { solutions } from './lib/solutions'
 import { api, token } from './lib/api'
 import { num } from './lib/format'
 import Calculator from './components/Calculator'
 import AuthScreen from './components/AuthScreen'
 import Landing from './components/Landing'
 import Saved from './components/Saved'
-import RhythmTable from './components/RhythmTable'
+import Ways from './components/Ways'
 import Sidebar from './components/Sidebar'
 import { useLook } from './lib/look'
 
@@ -151,11 +152,26 @@ export default function App({ startTab = 'calc', startScreen }) {
     setTab('calc')
   }
 
-  // Довідник порівнює захвати, тож йому потрібен справжній захват сівалки —
-  // а він не завжди «секції × міжряддя»: розкладка сошників буває довільною.
+  // Захват сівалки не завжди «секції × міжряддя»: розкладка сошників буває
+  // довільною, і тоді його знає лише геометрія.
   const drill = drillGeometry(input).width
   const lead = (input.machines ?? []).find((m) => m.active !== false)
   const leadWidth = lead?.width ?? input.sprayerWidth
+
+  // Способи засіяти поле наявною технікою — ними живе окрема вкладка.
+  // Перебір дорогий, тож іде за відкладеним станом: форма не має його чекати.
+  const lazy = useDeferredValue(input)
+  const ways = useMemo(
+    () => solutions(
+      { ...lazy, machines: lazy.machines ?? defaultMachines() },
+      {
+        fieldWidth: lazy.fieldWidth, fieldLength: lazy.fieldLength,
+        headland: lazy.headland, serpentine: lazy.serpentine,
+      },
+      6,
+    ),
+    [lazy],
+  )
 
   // Скільки машин справді в колії — число для пункту «Машини». Рахується
   // нормалізацією списку, без геометрії: це дешево й не залежить від того,
@@ -282,8 +298,27 @@ export default function App({ startTab = 'calc', startScreen }) {
                   )
               )}
 
-              {tab === 'rhythms' && (
-                <RhythmTable drillWidth={drill} sprayerWidth={leadWidth} />
+              {tab === 'ways' && (
+                ways.length > 0
+                  ? (
+                    <Ways
+                      list={ways}
+                      active={null}
+                      onTake={(patch) => { setInput((s) => ({ ...s, ...patch })); setTab('calc') }}
+                    />
+                  )
+                  : (
+                    <div className="narrow">
+                      <div className="panel">
+                        <h2>способів ще немає</h2>
+                        <p className="auth-lead">
+                          Щоб було що шукати, потрібні сівалка (сошники й міжряддя)
+                          і хоч одна машина із захватом. Своя розкладка сошників
+                          тут не перебирається — для неї дивіться головну відповідь.
+                        </p>
+                      </div>
+                    </div>
+                  )
               )}
 
               <footer className="foot">

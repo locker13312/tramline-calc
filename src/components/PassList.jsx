@@ -89,9 +89,15 @@ export default function PassList({ plan, rowSpacing, custom }) {
                   {p.tramline
                     ? <b>{rangeText(p.cab.disabled)}</b>
                     : <span className="pt-none">нічого</span>}
-                  {p.outside.length > 0 && (
+                  {p.cab.overlapClosed?.length > 0 && (
                     <span className="pt-out">
                       {p.tramline ? ' + ' : ''}
+                      {rangeText(p.cab.overlapClosed)} — нахльост
+                    </span>
+                  )}
+                  {p.outside.length > 0 && (
+                    <span className="pt-out">
+                      {p.tramline || p.cab.overlapClosed?.length ? ' + ' : ''}
                       {rangeText(p.cab.outside)} — за межею поля
                     </span>
                   )}
@@ -125,6 +131,11 @@ export default function PassList({ plan, rowSpacing, custom }) {
             'приблизно таку смугу й лишає кожен вимкнений сошник.'
           : `Міжряддя ${num(rowSpacing * 100, 0)} см, тож кожен вимкнений сошник — ` +
             `смуга ${num(rowSpacing * 100, 0)} см без сходів.`}
+        {plan.overlapRows > 0 && (
+          ` Сошники нахльоста (${plan.overlapRows} з того краю, яким сівалка `
+          + 'заходить на засіяне) смуги не лишають: під ними вже є рядок сусіднього '
+          + 'проходу. На першому проході вони сіють — заходити нікуди.'
+        )}
       </p>
     </div>
   )

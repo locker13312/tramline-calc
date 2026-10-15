@@ -253,30 +253,52 @@ test('найменше міжряддя видно з розкладки', () =>
   assert.equal(r.minGap, 0.3)
 })
 
-// ── Слід трактора сівалки ─────────────────────────────────────────────────
+// ── Нахльост ──────────────────────────────────────────────────────────────
 
-test('слід трактора сівалки глушить сошники на кожному проході', () => {
+test('нахльост зменшує крок, а не захват сівалки', () => {
+  // Штанга тут 15,75 м: саме стільки ділиться на крок 3,15 м рівно, тож
+  // нахльост видно сам по собі, без припущень.
+  const r = computeTramlines({
+    ...grain,
+    overlapRows: 3,
+    machines: [mach('s', 'Обприскувач', 15.75, [{ trackWidth: 1.8, tyreWidth: 0.35 }])],
+  })
+  assert.equal(r.drillWidth, 3.6, 'рама як була')
+  assert.equal(r.step, 3.15, 'а переставляється сівалка на крок')
+  assert.deepEqual(r.overlapClosed, [1, 2, 3])
+  assert.equal(r.assumed, null, '15,75 м на крок 3,15 м ділиться рівно')
+  assert.equal(r.rhythm, 5)
+})
+
+test('сошники нахльоста не вважаються недосіяними', () => {
+  const r = computeTramlines({ ...grain, overlapRows: 4, machines: [sprayer18()] })
+  // Рядків за цикл — лише ті, що сіються: решту кладе сусідній прохід.
+  assert.equal(r.rowsPerCycle, (24 - 4) * r.cycle)
+  for (const p of r.passes) {
+    for (const m of r.overlapClosed) {
+      assert.ok(!p.disabled.includes(m), `сошник ${m} і в нахльості, і в колії`)
+    }
+  }
+})
+
+test('нахльост, якого сівалка не може дати, обрізається з попередженням', () => {
+  // Обрізається до 22 — щонайменше два сошники мусять сіяти. Далі крок 0,3 м
+  // під штангу 18 м до ритму не зводиться, тож відповідь береться з
+  // припущення, але попередження про обрізане число лишається при ній.
+  const r = computeTramlines({ ...grain, overlapRows: 99, machines: [sprayer18()] })
+  assert.ok(r.overlapRows <= 22)
+  assert.ok(r.warnings.some((w) => w.includes('більше, ніж сівалка може віддати')))
+})
+
+test('старий збережений трактор сівалки просто не враховується', () => {
   const plain = computeTramlines({ ...grain, machines: [sprayer18()] })
-  const own = computeTramlines({
+  const old = computeTramlines({
     ...grain,
     machines: [sprayer18()],
     drillTractor: { trackWidth: 1.8, tyreWidth: 0.52, closeOwnTracks: true },
   })
-  assert.ok(own.disabledPerCycle > plain.disabledPerCycle)
-  // На кожному проході циклу, а не на одному: трактор їде щоразу.
-  assert.equal(own.passes.every((p) => p.disabled.length > 0), true)
-  assert.ok(own.passes.some((p) => p.reasons.some((x) => x.machine === 'drill-tractor')))
-})
-
-test('слід трактора сівалки за замовчуванням нічого не глушить', () => {
-  const r = computeTramlines({
-    ...grain,
-    machines: [sprayer18()],
-    drillTractor: { trackWidth: 1.8, tyreWidth: 0.52 },
-  })
-  const plain = computeTramlines({ ...grain, machines: [sprayer18()] })
-  assert.equal(r.disabledPerCycle, plain.disabledPerCycle)
-  assert.equal(r.ownBands.length, 0)
+  assert.equal(old.disabledPerCycle, plain.disabledPerCycle)
+  assert.deepEqual(old.warnings, plain.warnings)
 })
 
 // ── Підбір колісної бази під кілька машин ─────────────────────────────────

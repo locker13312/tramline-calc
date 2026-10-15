@@ -10,7 +10,8 @@
 
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { computeTramlines, fieldPlan, suggestTracks, suggestions, workingWidths, rhythmOf, drillGeometry } from '../src/lib/tramline.js'
+import { computeTramlines, fieldPlan, suggestTracks, workingWidths, rhythmOf, drillGeometry } from '../src/lib/tramline.js'
+import { solutions } from '../src/lib/solutions.js'
 import { economics } from '../src/lib/economics.js'
 import { normaliseMachines } from '../src/lib/machines.js'
 
@@ -172,19 +173,15 @@ test('базова машина завжди одна або жодної', () =
   }
 })
 
-// ── Трактор сівалки ───────────────────────────────────────────────────────
+// ── Нахльост ──────────────────────────────────────────────────────────────
 
-test('зіпсований трактор сівалки не ломає розрахунок', () => {
-  for (const drillTractor of [
-    null, undefined, 'трактор', 7, {},
-    { trackWidth: NaN, tyreWidth: NaN, closeOwnTracks: true },
-    { trackWidth: -2, tyreWidth: -1, closeOwnTracks: true },
-    { trackWidth: 1.8, tyreWidth: 99, closeOwnTracks: true },
-    { trackWidth: 99, tyreWidth: 1.8, closeOwnTracks: true },
-    { trackWidth: 1.8, tyreWidth: 0.5, margin: NaN, closeOwnTracks: true },
-  ]) {
-    const r = computeTramlines({ ...ok, machines: [spr], drillTractor })
-    sane(r, `трактор ${JSON.stringify(drillTractor)}`)
+test('зіпсований нахльост не ломає розрахунок', () => {
+  for (const overlapRows of [...BAD_NUMBERS, 0, 1, 23, 24, 1000, 2.7, -3]) {
+    const r = computeTramlines({ ...ok, machines: [spr], overlapRows })
+    sane(r, `нахльост ${JSON.stringify(overlapRows)}`)
+    assert.ok(r.overlapRows >= 0 && r.overlapRows <= 22,
+      `нахльост ${JSON.stringify(overlapRows)} дав ${r.overlapRows}`)
+    if (r.ok) assert.ok(r.step > 0, `нахльост ${JSON.stringify(overlapRows)}: крок ${r.step}`)
   }
 })
 
@@ -286,18 +283,24 @@ test('підбір бази витримує сміття', () => {
   }
 })
 
-// ── Підказки й довідник ───────────────────────────────────────────────────
+// ── Способи й робочі ширини ───────────────────────────────────────────────
 
-test('підказки захватів витримують сміття', () => {
+test('пошук способів витримує сміття у кожному полі', () => {
   for (const bad of BAD_NUMBERS) {
-    for (const field of ['rows', 'rowSpacing', 'sprayerWidth']) {
-      let s
-      const input = { rows: 24, rowSpacing: 0.15, sprayerWidth: 18, [field]: bad }
-      assert.doesNotThrow(() => { s = suggestions(input) }, `підказки ${field}=${JSON.stringify(bad)} впали`)
-      finite(s, `підказки ${field}=${JSON.stringify(bad)}`)
-      for (const w of s.sprayerWidths) assert.ok(w.width > 0)
-      for (const d of s.drills) assert.ok(d.rows >= 2 && d.width > 0)
-      for (const w of s.working) assert.ok(w.width > 0 && w.rows >= 2)
+    for (const field of ['rows', 'rowSpacing', 'fieldWidth', 'fieldLength', 'headland', 'overlapRows']) {
+      const input = { ...ok, machines: [spr], [field]: bad }
+      let list
+      assert.doesNotThrow(
+        () => { list = solutions(input, input) },
+        `способи ${field}=${JSON.stringify(bad)} впали`,
+      )
+      assert.ok(Array.isArray(list))
+      finite(list.map((s) => ({ ...s, why: null, start: null, finish: null, patch: null })),
+        `способи ${field}=${JSON.stringify(bad)}`)
+      for (const s of list) {
+        assert.ok(s.baseWidth > 0 && s.step > 0, `спосіб без розмірів: ${s.id}`)
+        assert.ok(s.why.length > 0, `спосіб без пояснення: ${s.id}`)
+      }
     }
   }
 })

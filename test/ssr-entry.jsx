@@ -55,9 +55,14 @@ const scenarios = {
     machines: [newMachine('sprayer', { width: 18, axles: [{ trackWidth: 1.8, tyreWidth: 0.35 }] })],
   },
 
-  'слід трактора глушимо': {
+  'нахльост на засіяне': { ...DEFAULTS, overlapRows: 3 },
+
+  'нахльост більший за сівалку': { ...DEFAULTS, overlapRows: 99 },
+
+  'штанга, що не ділиться — відповідь із припущенням': {
     ...DEFAULTS,
-    drillTractor: { trackWidth: 1.8, tyreWidth: 0.52, closeOwnTracks: true },
+    machines: [newMachine('sprayer', { width: 16, axles: [{ trackWidth: 1.8, tyreWidth: 0.45 }] })],
+    fieldWidth: 46, fieldLength: 950, headland: 0,
   },
 
   'асиметричний ритм': {
@@ -136,7 +141,7 @@ for (const [name, input] of Object.entries(scenarios)) {
 // Оболонка цілком: шапка, перемикач теми, вкладки, підвал. Калькулятор
 // перевірено вище сам по собі, але вкладення розмітки в App ламається
 // окремо — і ламалося.
-for (const tab of ['calc', 'rhythms']) {
+for (const tab of ['calc', 'ways']) {
   try {
     // startScreen="app" тут обовʼязковий: сама програма відкривається з
     // вітрини, і без нього перевірка малювала б її замість оболонки — тобто

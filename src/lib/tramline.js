@@ -15,7 +15,7 @@
 // це не вимагає: смуги складаються в один список, і сошник глушиться, якщо
 // потрапив хоч в одну.
 
-import { drillGeometry, minGap, tractorBands, resolveMargin, LIMITS } from './geometry.js'
+import { drillGeometry, minGap, overlapOf, resolveMargin, LIMITS } from './geometry.js'
 import { normaliseMachines } from './machines.js'
 
 const EPS = 1e-9
@@ -41,60 +41,18 @@ export function ratioOf({ rows, rowSpacing, sprayerWidth }) {
   return W > 0 ? sprayerWidth / W : 0
 }
 
-// Ширини, за яких колія взагалі можлива: захват машини має бути цілим
-// числом проходів сівалки. Коли ділиться не націло — показуємо, що поміняти.
-//
-// sprayerWidth тут — те, що фізично є на дворі: розмах штанги. Купувати іншу
-// штангу заради колії ніхто не буде, тому головна відповідь — не «зміни
-// обприскувач», а «їдь цією ж штангою вужче»: перекривай сусідній прохід і
-// вимикай крайні секції. Саме так 16-метрова штанга працює на 14,4 м.
-export function suggestions({ rows, rowSpacing, sprayerWidth }) {
-  // Підказка на зіпсованих числах — це не підказка. Порожній список чесніший
-  // за «спробуйте штангу NaN метрів».
-  const sane = (v, max) => Number.isFinite(Number(v)) && Number(v) > 0 && Number(v) <= max
-  if (!sane(rows, LIMITS.coulters) || !sane(rowSpacing, LIMITS.rowSpacing)
-    || !sane(sprayerWidth, LIMITS.machineWidth)) {
-    return { sprayerWidths: [], drills: [], working: [] }
-  }
-
-  const W = drillWidth(rows, rowSpacing)
-  const sprayerWidths = []
-  for (let k = 1; k <= 12; k++) {
-    const w = mm(k * W)
-    if (Math.abs(w - sprayerWidth) > 0.01) {
-      sprayerWidths.push({
-        k,
-        width: w,
-        // Ширину більшу за штангу взяти нізвідки — між проходами лишиться
-        // необроблена смуга. Менша означає лише перекриття.
-        fits: w <= sprayerWidth + 0.01,
-        overlap: mm(sprayerWidth - w),
-      })
-    }
-  }
-  // Та сама задача з іншого боку: залишаємо обприскувач, підбираємо сівалку.
-  const drills = []
-  for (let k = 1; k <= 12; k++) {
-    const exactRows = sprayerWidth / (k * rowSpacing)
-    const r = Math.round(exactRows)
-    if (r >= 2 && r <= LIMITS.coulters && Math.abs(exactRows - r) < 1e-6 && r !== rows) {
-      drills.push({ k, rows: r, width: mm(r * rowSpacing) })
-    }
-  }
-  return {
-    sprayerWidths: sprayerWidths.slice(0, 8),
-    drills: drills.slice(0, 8),
-    working: workingWidths({ rows, rowSpacing, boomWidth: sprayerWidth }),
-  }
-}
-
-// Робочі ширини під наявну штангу: скільки секцій сівалки реально сіє (r) і
-// скільки таких проходів вкладається в один прохід обприскувача (k). Перекриття
-// — те, що штанга накриває двічі; його або вимикають крайніми секціями, або
+// Робочі ширини під наявну машину: скільки секцій сівалки реально сіє (r) і
+// скільки таких проходів вкладається в один її прохід (k). Перекриття — те,
+// що штанга накриває двічі; його або вимикають крайніми секціями, або
 // миряться з подвійною дозою на цій смузі.
 //
-// Звужувати сівалку означає заглушити кілька секцій з одного боку назавжди:
-// рама так само перекриває сусідній прохід, але жоден рядок не сіється двічі.
+// Це не порада поміняти техніку, а єдина відповідь, яку взагалі можна дати
+// на «16 м не діляться на 3,6 м»: захвати лишаються ті, що є, міняється
+// тільки те, якою частиною захвату працювати.
+//
+// Заглушені крайні секції — це нахльост: рама так само заходить на сусідній
+// прохід, але жоден рядок не сіється двічі й жоден не пропадає. Платять за це
+// не площею, а зайвим проходом сівалки.
 export function workingWidths({ rows, rowSpacing, boomWidth, limit = 4 }) {
   // Кожне число мусить бути числом, і не будь-яким. `rows: Infinity` давало
   // вічний цикл: Infinity − 1 це знову Infinity, і лічильник ніколи не
@@ -126,21 +84,86 @@ export function workingWidths({ rows, rowSpacing, boomWidth, limit = 4 }) {
           overlap,
           overlapPct,
           offPct,
-          // Дві втрати різної природи, зведені до спільної міри: скільки
+// Дві втрати різної природи, зведені до спільної міри: скільки
           // відсотків роботи пропадає. Перекриття — в обприскувача, заглушені
           // секції — в сівалки. Без цього список очолюють варіанти на кшталт
           // «заглуши 11 секцій із 24, зате перекриття на 15 см менше»:
           // формально найточніші, а на полі — подвоєна сівба.
-          cost: mm(overlapPct + offPct),
+          //
+          // Але й порівну їх ставити не можна. Перекриття штанги — подвійна
+          // доза на цій смузі, і то на кожній обробці за сезон, їх чотири.
+          // Заглушені секції — зайвий прохід сівалки, один раз на все поле, і
+          // ні зерна, ні площі на ньому не губиться: рядки під ними кладе
+          // сусідній прохід. Тому вага половинна, а не однакова — інакше
+          // програма радить лити двічі там, де достатньо проїхати раз.
+          cost: mm(overlapPct + offPct * OFF_WEIGHT),
         })
       }
     }
   }
 
   return [...seen.values()]
-    .filter((o) => o.off * 3 <= top)   // різати сівалку більш ніж на третину не варіант
+    .filter((o) => o.off * 3 <= top)   // нахльост більш ніж на третину сівалки не варіант
     .sort((a, b) => a.cost - b.cost || b.rows - a.rows)
     .slice(0, limit)
+}
+
+// Чого коштує заглушена крайня секція проти метра перекриття штанги.
+const OFF_WEIGHT = 0.5
+
+// ── Робочі ширини на весь парк ───────────────────────────────────────────
+//
+// Звузити одну машину мало. Крок колій спільний, і щойно він змінився,
+// кожна машина парку мусить вкладати його цілим числом разів — інакше вона
+// просто випадає з колії й їде по посіву. Саме це й ставалося: програма
+// пропонувала «їдь комбайном 8,55 м», і обприскувач, який до того лягав у
+// колію рівно, тихо з неї вилітав.
+//
+// Тому варіант — це не ширина однієї машини, а набір: крок сівалки й робоча
+// ширина кожної машини під цей крок. Ширина береться найбільшою, яка в крок
+// укладається: машина працює рівно тим, що має, мінус перекриття.
+export function workingSets({ rows, rowSpacing, machines, limit = 8 }) {
+  const active = (machines ?? []).filter((m) => m && m.width > 0 && m.active !== false)
+  if (!active.length) return []
+  const lead = active.find((m) => m.base)
+    || active.slice().sort((a, b) => a.width - b.width)[0]
+
+  // Перебираємо кроки — а їх задає нахльост сівалки, тобто скільком крайнім
+  // сошникам не сіяти. Ціну кожного кроку вже знає workingWidths; тут до неї
+  // додається тільки те, чого вона не бачить: решта парку.
+  const steps = workingWidths({ rows, rowSpacing, boomWidth: lead.width, limit })
+  const out = []
+  for (const o of steps) {
+    const step = mm((rows - o.off) * rowSpacing)
+    if (!(step > 0)) continue
+    const per = active.map((m) => {
+      const k = Math.floor((m.width + EPS) / step)
+      const width = mm(k * step)
+      const overlap = mm(m.width - width)
+      return {
+        id: m.id, label: m.label, was: mm(m.width), width, k, overlap,
+        overlapPct: mm((overlap / m.width) * 100),
+        // Перекриття більше за чверть захвату — це вже не робота, а
+        // катання: машина возить по сусідньому проходу чверть себе.
+        fits: k >= 1 && overlap <= m.width / 4 + EPS,
+      }
+    })
+    const good = per.filter((x) => x.fits)
+    if (!good.some((x) => x.id === lead.id)) continue
+    const overlapPct = mm(good.reduce((a, x) => a + x.overlapPct, 0) / good.length)
+    out.push({
+      off: o.off, rows: rows - o.off, step, offPct: o.offPct,
+      machines: per,
+      outsiders: per.filter((x) => !x.fits),
+      overlapPct,
+      // Ціна набору: перекриття в середньому по парку, зайвий прохід
+      // сівалки — вполовину дешевший, і окремо найдорожче — машина, що з
+      // колії випала. Остання не «гірший варіант», а інша задача: колію
+      // нарізали, а машина по ній не їздить.
+      cost: mm(overlapPct + o.offPct * OFF_WEIGHT + per.filter((x) => !x.fits).length * 20),
+    })
+  }
+  return out.sort((a, b) => a.cost - b.cost)
 }
 
 // Найбільший спільний дільник — щоб звести відношення захватів до
@@ -198,12 +221,18 @@ const MAX_RHYTHM = 12
  * margin            запас з кожного боку смуги, м
  * marginManual      запас задає людина, а не система
  * halfStart         почати поле половинним проходом сівалки
- * drillTractor      трактор сівалки: колія, шина, чи глушити свій слід
+ * overlapRows       нахльост: скільки крайніх сошників закриває кожен
+ *                   наступний прохід, бо йде по вже засіяному
  *
  * Повертає цикл проходів: що робити на кожному, поки візерунок не повториться.
+ *
+ * assume — припущення, з яким рахувати замість заданих чисел (робоча ширина
+ * машини, нахльост). Їх підставляє computeTramlines нижче, коли на заданих
+ * числах ритм не складається: відмова нікому не потрібна, потрібна відповідь
+ * із чесно названим припущенням.
  */
-export function computeTramlines(input) {
-  const { rowSpacing, halfStart = false, drillTractor = null } = input
+function computeOnce(input, assume = null) {
+  const { rowSpacing, halfStart = false } = input
   // Запас береться в одному місці на весь розрахунок: або той, що задала
   // людина, або той, який бере система. Інакше смуги машин і смуга трактора
   // сівалки могли розійтися на різні значення — на схемі це видно, а в
@@ -215,6 +244,31 @@ export function computeTramlines(input) {
   const W = geo.width
   const offsets = geo.offsets
   const rows = geo.rows
+
+  // Нахльост: сівалка переставляється не на свій захват, а на крок — захват
+  // мінус те, чим вона заходить на вже засіяне. Далі в розрахунку W лишається
+  // шириною рами (на ній стоять сошники), а кроком усього — D.
+  const over = overlapOf({ overlapRows: assume?.overlapRows ?? input.overlapRows }, geo)
+  // Те, що задала людина, — окремо від того, з чим рахуємо: зауваження про
+  // завеликий нахльост стосується її числа, і воно однакове що з
+  // припущенням, що без нього.
+  const asked = overlapOf(input, geo)
+  const D = over.step > 0 ? over.step : W
+  if (over.rows > 0 && !(over.step > 0)) {
+    warnings.push(
+      `Нахльост ${over.rows} ` +
+      'сошників не лишає сівалці кроку — рахую без нахльоста. Перевірте захват ' +
+      'сівалки: при своїй розкладці він задається окремо.',
+    )
+  }
+  const overRows = over.step > 0 ? over.rows : 0
+  const overWidth = over.step > 0 ? over.width : 0
+  if (asked.clamped) {
+    warnings.push(
+      `Нахльост ${asked.clamped} сошників — це більше, ніж сівалка може віддати. ` +
+      `Рахую з ${asked.rows}: щонайменше два сошники мусять сіяти.`,
+    )
+  }
 
   // Числа поза межами моделі — це описка, а не велика сівалка. Відповідь на
   // неї мусить бути реченням, а не підвисанням: обсяг розрахунку залежить
@@ -247,14 +301,24 @@ export function computeTramlines(input) {
   if (outOfRange || noDrill) {
     return {
       ok: false, fail: 'drill',
-      drillWidth: Number.isFinite(W) ? mm(W) : 0, ratio: 0, cycle: 0, passes: [],
+      drillWidth: Number.isFinite(W) ? mm(W) : 0, step: Number.isFinite(D) ? mm(D) : 0,
+      overlapRows: 0, overlapWidth: 0, ratio: 0, cycle: 0, passes: [],
       rows, coulters: offsets, machines: normaliseMachines(input), base: null, strips: [],
       warnings: [outOfRange || noDrill],
       suggestions: null,
     }
   }
 
-  const all = normaliseMachines(input)
+  // Робочі ширини з припущення діють на весь парк: крок колій спільний, і
+  // під нього підганяється кожна машина, а не лише та, під яку різали
+  // колію. Її ж припущення закріплює базовою — вибирати іншу вже нема сенсу.
+  const all = normaliseMachines(input).map((m) => {
+    if (!assume) return m
+    const width = assume.widths.get(m.id)
+    return width > 0
+      ? { ...m, width: mm(width), base: m.id === assume.baseId, tooWide: false }
+      : { ...m, base: false }
+  })
   // Межа на кількість машин: більше десяти на одній колії не їздить навіть у
   // найбільшому господарстві, а перебір росте як машини × варіанти × смуги.
   // Зайві не губляться молча — про них є попередження нижче.
@@ -293,7 +357,7 @@ export function computeTramlines(input) {
   // скажемо окремо. Інакше один неправильно введений перевантажувач гасив би
   // усю відповідь.
   const fracOf = new Map()
-  for (const m of active) fracOf.set(m.id, W > 0 ? asFraction(m.width / W) : null)
+  for (const m of active) fracOf.set(m.id, D > 0 ? asFraction(m.width / D) : null)
 
   // Крок колій задає найвужча машина — і це не умовність, а умова, за якої
   // спільна колія взагалі можлива.
@@ -320,10 +384,16 @@ export function computeTramlines(input) {
   const baseFrac = base ? fracOf.get(base.id) : null
   if (!base || !baseFrac || baseFrac.p < 1 || baseFrac.p > LIMITS.rhythm) {
     const leadWidth = base?.width ?? input.sprayerWidth ?? 0
-    const ratio = W > 0 ? leadWidth / W : 0
+    const ratio = D > 0 ? leadWidth / D : 0
+    // Коли нахльост заданий, у реченні про невдачу мусить стояти крок, а не
+    // захват рами: саме крок не поділився, і саме його міняють нахльостом.
+    const stepText = overRows > 0
+      ? `крок сівалки ${mm(D)} м (рама ${mm(W)} м мінус нахльост ${mm(overWidth)} м)`
+      : `захват сівалки ${mm(W)} м`
     return {
       ok: false, fail: base ? 'ratio' : 'machines',
-      drillWidth: mm(W), ratio: mm(ratio), cycle: 0, passes: [],
+      drillWidth: mm(W), step: mm(D), overlapRows: overRows, overlapWidth: mm(overWidth),
+      ratio: mm(ratio), cycle: 0, passes: [],
       rows, coulters: offsets, machines: all, base: base || null, strips: [],
       warnings: [
         !base
@@ -332,42 +402,26 @@ export function computeTramlines(input) {
             ? `Захват «${base.label}» (${mm(leadWidth)} м) на сівалці ${mm(W)} м дав би цикл ` +
               `на ${baseFrac.p} проходів. Такого не відрахує ні механізатор, ні термінал — ` +
               'перевірте, чи не зайвий нуль у захваті.'
-            : `Захват «${base.label}» (${mm(leadWidth)} м) і захват сівалки (${mm(W)} м) ` +
+            : `Захват «${base.label}» (${mm(leadWidth)} м) і ${stepText} ` +
               `не зводяться до робочого ритму — виходить ${mm(ratio)} проходу. ` +
               `Колеса щоразу падатимуть у нове місце.`,
         // Попередження про незаповнені машини лишаються: саме вони часто й
         // є причиною того, що колія не складається.
         ...warnings,
       ],
-      suggestions: suggestions({ rows, rowSpacing, sprayerWidth: leadWidth }),
+      suggestions: null,
     }
   }
 
-  // Половинний перший прохід зсуває сітку сівалки на пів захвату — саме так
+  // Половинний перший прохід зсуває сітку сівалки на півкроку — саме так
   // парний коефіцієнт перетворюють з двох половинок колії на одну цілу.
-  const shift = halfStart ? W / 2 : 0
+  const shift = halfStart ? D / 2 : 0
 
-  // Слід трактора сівалки лягає на кожному її проході, тому це не колія, а
-  // постійно вимкнені сошники. Глушать їх не всі — лише ті, хто вважає, що
-  // зерно в ущільненому сліді все одно пропаде.
-  //
-  // Рахується до вибору розкладки навмисно: ці сошники глухнуть незалежно від
-  // машин, але підбір відступів мусить це бачити. Інакше оптимізатор зводить
-  // не те число — старається прибрати сошник, який і так уже заглушений.
-  const ownBands = drillTractor?.closeOwnTracks
-    ? tractorBands({ ...drillTractor, margin: drillTractor.margin ?? margin }, W)
-    : []
-  // Трактор сівалки описаний не до кінця — колія є, шини немає, або навпаки.
-  // Прапорець стоїть, а смуг нема: цифри від цього не міняються, і без
-  // попередження це виглядає так, ніби програма прапорець не побачила.
-  if (drillTractor?.closeOwnTracks && ownBands.length === 0) {
-    warnings.push(
-      'Глушити слід трактора сівалки нема по чому: не задані колія між ' +
-      'колесами або ширина шини трактора. Сошники під його слідом у ' +
-      'розрахунку не вимкнені.',
-    )
-  }
-  const inOwn = (local) => ownBands.some((s) => local >= s.from - EPS && local <= s.to + EPS)
+  // Сошники, що йдуть по нахльосту, закриті на кожному проході, крім
+  // найпершого на полі: під ними вже є рядок, покладений сусіднім проходом.
+  // Для циклу вони просто закриті — і саме тому не губиться жодної площі:
+  // колія тут ні до чого, сіє сусід.
+  const overClosed = Array.from({ length: overRows }, (_, i) => i + 1)
 
   // ── Розкладка під задану базову машину ──────────────────────────────────
   //
@@ -403,7 +457,7 @@ export function computeTramlines(input) {
       fitting.push(m)
     }
 
-    const period = mm(k * W)                   // довжина повного циклу
+    const period = mm(k * D)                   // довжина повного циклу
 
     // Візерунок циклічний з періодом period, тож положення звужуємо до одного
     // циклу. Колесо біля межі періоду переноситься на початок — це те саме
@@ -465,8 +519,12 @@ export function computeTramlines(input) {
     const maskOf = (list) => {
       const mask = new Uint32Array(words)
       for (let i = 0; i < k; i++) {
-        const left = i * W - shift
-        for (let j = 0; j < rows; j++) {
+        const left = i * D - shift
+        // Сошники нахльоста пропускаємо: вони й так закриті, а рядок під
+        // ними кладе сусідній прохід — і якщо колесо стало саме туди,
+        // глушити доведеться той сошник сусіда, не цей. Він перевіряється
+        // на своєму місці, бо позиції тут абсолютні.
+        for (let j = overRows; j < rows; j++) {
           if (inAny(left + offsets[j], list)) {
             const b = i * rows + j
             mask[b >>> 5] |= 1 << (b & 31)
@@ -474,19 +532,6 @@ export function computeTramlines(input) {
         }
       }
       return mask
-    }
-    // Слід трактора не залежить ні від машин, ні від відступів: він лягає на
-    // кожному проході в тому самому місці рами.
-    const ownMask = new Uint32Array(words)
-    if (ownBands.length) {
-      for (let i = 0; i < k; i++) {
-        for (let j = 0; j < rows; j++) {
-          if (inOwn(offsets[j])) {
-            const b = i * rows + j
-            ownMask[b >>> 5] |= 1 << (b & 31)
-          }
-        }
-      }
     }
     const orAll = (...masks) => {
       const out = new Uint32Array(words)
@@ -506,7 +551,7 @@ export function computeTramlines(input) {
 
     // Залишений для звітів по машинах: там рахують по разу, і читабельність
     // важливіша за швидкість.
-    const countFor = (list) => bits(orAll(maskOf(list), ownMask))
+    const countFor = (list) => bits(maskOf(list))
 
     // Сітка перебору відступів не випадкова. Пів кроку колій ставить машину
     // колесо в колесо з базовою; пів захвату сівалки вирівнює її з проходами
@@ -584,7 +629,7 @@ export function computeTramlines(input) {
       let moved = false
       for (const m of movable) {
         if (budget <= 0) break
-        const others = orAll(ownMask,
+        const others = orAll(
           ...fitting.filter((x) => x !== m).map((x) => masks.get(x.id)))
         const floor = bits(others)        // нижче не впасти: це ціна без машини
         const { round, fine } = phaseGrid(m.width)
@@ -620,8 +665,8 @@ export function computeTramlines(input) {
     const strips = fitting.flatMap((m) => byMachine.get(m.id))
     return {
       lead, k, period, limit, fitting, outsiders, phases, byMachine, strips,
-      inAny, countFor, masks, ownMask, orAll, bits,
-      cost: bits(orAll(ownMask, ...fitting.map((m) => masks.get(m.id)))),
+      inAny, countFor, masks, orAll, bits,
+      cost: bits(orAll(...fitting.map((m) => masks.get(m.id)))),
     }
   }
 
@@ -658,7 +703,7 @@ export function computeTramlines(input) {
 
   const {
     k, period, limit, fitting, outsiders, phases, byMachine, strips,
-    inAny, masks, ownMask, orAll, bits,
+    inAny, masks, orAll, bits,
   } = layout
   base = layout.lead
   const S = mm(base.width)
@@ -683,13 +728,13 @@ export function computeTramlines(input) {
 
   const passes = []
   for (let i = 0; i < k; i++) {
-    const left = i * W - shift
+    const left = i * D - shift
     const right = left + W
     const disabled = []
     const reasons = new Map()        // id машини → сошники, що через неї глухнуть
     const clearances = []
 
-    for (let m = 1; m <= rows; m++) {
+    for (let m = overRows + 1; m <= rows; m++) {
       const x = left + offsets[m - 1]
       let hit = false
       for (const other of fitting) {
@@ -698,11 +743,6 @@ export function computeTramlines(input) {
           if (!reasons.has(other.id)) reasons.set(other.id, [])
           reasons.get(other.id).push(m)
         }
-      }
-      if (ownBands.length && inAny(x - left, ownBands)) {
-        hit = true
-        if (!reasons.has('drill-tractor')) reasons.set('drill-tractor', [])
-        reasons.get('drill-tractor').push(m)
       }
       if (hit) disabled.push(m)
     }
@@ -735,7 +775,7 @@ export function computeTramlines(input) {
     const partial = halfStart && i === 0
     const sowing = []
     if (partial) {
-      for (let m = 1; m <= rows; m++) {
+      for (let m = overRows + 1; m <= rows; m++) {
         if (left + offsets[m - 1] >= -EPS) sowing.push(m)
       }
     }
@@ -743,12 +783,16 @@ export function computeTramlines(input) {
     passes.push({
       n: i + 1,
       from: mm(left), to: mm(right),
+      // Де починається нова земля цього проходу: решта рами йде по нахльосту,
+      // над рядками сусіда. Без нахльоста це просто край рами.
+      newFrom: mm(left + overWidth),
       disabled,
+      // Закриті нахльостом — окремим списком, бо це інша дія й інша причина:
+      // їх закривають раз і на все поле, а не на конкретному проході циклу.
+      overlapClosed: overClosed,
       reasons: [...reasons.entries()].map(([id, list]) => ({
         machine: id,
-        label: id === 'drill-tractor'
-          ? 'слід трактора сівалки'
-          : (all.find((x) => x.id === id)?.label ?? id),
+        label: all.find((x) => x.id === id)?.label ?? id,
         rows: list,
       })),
       clearances, partial,
@@ -757,7 +801,9 @@ export function computeTramlines(input) {
   }
 
   const disabledPerCycle = passes.reduce((a, p) => a + p.disabled.length, 0)
-  const rowsPerCycle = rows * k
+  // Рядків за цикл — лише ті, що справді сіються: сошник у нахльості не
+  // пропущений рядок, а той самий рядок сусіднього проходу.
+  const rowsPerCycle = (rows - overRows) * k
 
   // Скільки сошників глухне через кожну машину — і скільки з них виключно
   // через неї. Друге число і є ціною того, щоб завести машину в колію: решту
@@ -778,7 +824,7 @@ export function computeTramlines(input) {
       fits: isFitting,
       phase: isFitting ? phases.get(m.id) : null,
       phaseFixed: m.phase != null,
-      ratio: W > 0 ? mm(m.width / W) : 0,
+      ratio: D > 0 ? mm(m.width / D) : 0,
       rhythm: f ? f.p : null,
       tyreWidth: m.axles.length ? mm(Math.max(...m.axles.map((a) => a.tyreWidth))) : 0,
       // 'off' — вимкнена свідомо, 'blank' — хотіли, але нема що рахувати.
@@ -794,9 +840,9 @@ export function computeTramlines(input) {
       // найближчі до наявного. Половинні — бо асиметричний ритм теж робочий.
       const opts = new Set()
       for (let n = 1; n <= 2 * limit; n++) {
-        const w = mm((n * W) / 2)
-        if (w < W / 2 - EPS) continue
-        const wf = asFraction(w / W)
+        const w = mm((n * D) / 2)
+        if (w < D / 2 - EPS) continue
+        const wf = asFraction(w / D)
         if (wf && lcm(baseFrac.p, wf.p) <= limit && Math.abs(w - m.width) > 0.01) opts.add(w)
       }
       report.options = [...opts]
@@ -811,7 +857,7 @@ export function computeTramlines(input) {
     // Скільки сошників ця машина глушить сама — без сліду трактора й без
     // решти парку. Саме це число порівнюють із тим, що вона додає.
     report.rowsIfAlone = bits(masks.get(m.id))
-    report.rowsWithout = bits(orAll(ownMask,
+    report.rowsWithout = bits(orAll(
       ...fitting.filter((x) => x !== m).map((x) => masks.get(x.id))))
     report.extraRows = disabledPerCycle - report.rowsWithout
     // Чи їде машина готовою смугою іншої, чи вимагає своєї: для кожного
@@ -874,10 +920,15 @@ export function computeTramlines(input) {
     baseId: base.id,
     machines: machineReports,
     fittingCount: fitting.length,
-    ownBands,
+    // Крок сівалки й нахльост: з них видно, чому відношення захватів саме
+    // таке, і ними ж міряються проходи по полю.
+    step: mm(D),
+    overlapRows: overRows,
+    overlapWidth: mm(overWidth),
+    overlapClosed: overClosed,
     period,
     shift: mm(shift),
-    ratio: mm(W > 0 ? base.width / W : 0),
+    ratio: mm(D > 0 ? base.width / D : 0),
     rhythm: k,
     symmetric,
     sprayerPassesPerCycle: Math.round((k * baseFrac.q) / baseFrac.p),
@@ -888,11 +939,164 @@ export function computeTramlines(input) {
     passes,
     disabledPerCycle,
     rowsPerCycle,
-    lossPct: mm((disabledPerCycle / rowsPerCycle) * 100),
+    lossPct: rowsPerCycle > 0 ? mm((disabledPerCycle / rowsPerCycle) * 100) : 0,
     warnings,
     suggestions: null,
+    assumed: assume,
   }
 }
+
+// ── Відповідь мусить бути завжди ──────────────────────────────────────────
+//
+// «Колія не складається» — чесна, але безкорисна відповідь: людина прийшла
+// не дізнатися, що її числа не діляться, а дізнатися, що робити на сівбі.
+// Захвати на дворі такі, які є: штангу 16 м ніхто не поміняє, міжряддя 15 см
+// теж, а 16 ÷ 3,6 не поділиться ніколи — у 16 м рівно 106⅔ міжряддя.
+//
+// Тому коли ритм не складається, програма не спиняється, а бере найдешевше
+// припущення з тих, що сама ж і пропонує: машина працює трохи вужче, а зайві
+// крайні сошники йдуть у нахльост. І каже про це прямо — яке саме припущення
+// і чого воно коштує. Решта варіантів лишається в «як із цього вийти», і
+// будь-який підставляється у форму одним натисканням.
+//
+// Припущення ніколи не підмінює заданих чисел молча: воно є в `assumed`,
+// названо першим рядком відповіді, і кожна його частина — те саме, що
+// господар міг поставити у формі руками.
+// Розрахунок строго на заданих числах: нічого не припускає, а коли ритм не
+// складається — так і каже. Потрібен пошукові способів: той сам перебирає
+// варіанти, і вкладений підбір усередині кожного був би тим самим перебором
+// ще раз, тільки вчетверо дорожчим.
+export const computeExact = (input) => computeOnce(input)
+
+export function computeTramlines(input) {
+  const direct = computeOnce(input)
+  // Припущення — тільки там, де колії немає зовсім. Якщо на заданих числах
+  // вона складається, міняти ці числа програма не має права: захвати ввела
+  // людина, і «я порахував з іншими» на це не відповідь. Коли при живій
+  // колії якась машина в неї не вклалася, про це сказано попередженням, а
+  // як її туди завести — видно в способах: там це вибір, а не підміна.
+  if (direct.ok || direct.fail !== 'ratio') return direct
+
+  // Скільком машинам, яких хотіли в колії, її таки нарізано. Це і є міра
+  // того, чи знайдене рішення: колія, по якій не їздить обприскувач, —
+  // не рішення, навіть якщо ритм у ній гарний.
+  const served = (r) => (r.ok ? r.machines.filter((m) => m.active && m.fits).length : 0)
+  const asked = (r) => (r.machines ?? []).filter((m) => m.active).length
+
+  // Машина, під яку різали колію: у відмові вона приходить окремим полем, у
+  // робочій відповіді — прапорцем у звіті по машинах.
+  const lead = direct.base ?? direct.machines?.find((m) => m.base) ?? null
+  const geo = drillGeometry(input)
+  // Своя розкладка сошників тут не перебирається: нахльост на «стільком
+  // крайнім не сіяти» має сенс лише при однаковому міжрядді.
+  const options = lead && !geo.custom
+    ? workingSets({
+      rows: geo.rows,
+      rowSpacing: input.rowSpacing,
+      machines: normaliseMachines(input).filter((m) => m.active),
+      limit: 8,
+    })
+    : []
+  if (!options.length) return direct
+
+  const already = direct.overlapRows || 0
+
+  // Перебираємо всі набори, а не беремо перший, що склався: набір може
+  // мати чудову ціну й при цьому викинути машину з колії через довгий
+  // ритм — цього видно лише після повного розрахунку.
+  let best = null
+  for (const o of options) {
+    // o.off — скільком сошникам сівалки не сіяти всього, а не на скільки
+    // збільшити вже заданий нахльост: підбір щоразу йде по всій сівалці.
+    // Ці крайні сошники і є нахльост: рама так само заходить на сусідній
+    // прохід, але жоден рядок не сіється двічі й жоден не пропадає.
+    const assume = {
+      baseId: lead.id,
+      baseLabel: lead.label,
+      widths: new Map(o.machines.filter((m) => m.fits).map((m) => [m.id, m.width])),
+      overlapRows: o.off,
+      wasOverlapRows: already,
+      option: o,
+    }
+    const next = computeOnce(input, assume)
+    if (!next.ok) continue
+    // Порівнюємо по порядку важливості: скільком машинам нарізано колію;
+    // чи не зменшено заданий нахльост (його ставлять не для краси, а тому
+    // що без підрулювання в стик не влучити); і аж потім ціна.
+    const mark = [-served(next), o.off >= already ? 0 : 1, o.cost]
+    if (!best || mark.some((v, i) => v < best.mark[i]
+      && mark.slice(0, i).every((x, j) => x === best.mark[j]))) {
+      best = { assume, next, mark }
+    }
+    // Усі машини в колії, нахльост не зменшений і нуль перекриття —
+    // кращого не буде.
+    if (served(next) === asked(next) && o.off >= already && o.cost === 0) break
+  }
+  if (!best) return direct
+
+  const { assume, next } = best
+  // Попередження беремо з самої відповіді, а не з прямого розрахунку: про
+  // вхідні числа (обрізаний нахльост, незаповнена машина) вона каже те саме,
+  // а про невдалий ритм у ній казати вже нічого — ритм складається.
+  return { ...next, warnings: [assumeLine(assume, next), ...next.warnings] }
+}
+
+// Речення про припущення — те саме, що сказав би агроном: що саме я взяв,
+// чому задані числа так не ділилися і чого це коштує.
+function assumeLine(assume, result) {
+  const o = assume.option
+  const parts = [
+    `Захвати на цій сівалці націло не діляться, тому рахую з припущенням.`,
+  ]
+
+  // Кожна машина, що працює вужче за свій розмах, названа окремо: це різні
+  // машини й різні люди в кабінах.
+  const narrowed = o.machines.filter((m) => m.fits && m.overlap > 0.001)
+  if (narrowed.length) {
+    parts.push(
+      narrowed
+        .map((m) => `«${m.label}» працює ${m.width} м замість ${m.was} м `
+          + `(перекриття ${m.overlap} м, ${num1(m.overlapPct)} % кожної обробки)`)
+        .join('; ')
+      + '. Крайні секції на перекритті вимикають, щоб не лити двічі.',
+    )
+  }
+
+  // Машина, якій під цей крок не лишилося робочої ширини: промовчати про
+  // неї не можна — колія для неї не нарізана, і по полю вона піде посівом.
+  if (o.outsiders.length) {
+    parts.push(
+      `Під цей крок не вкладається: `
+      + o.outsiders.map((m) => `«${m.label}» ${m.was} м`).join(', ')
+      + '. По цій колії ця машина не поїде — або ввімкніть інший спосіб,'
+      + ' або приберіть її з колії свідомо.',
+    )
+  }
+  if (o.off > 0) {
+    parts.push(
+      `Сівалка йде з нахльостом ${assume.overlapRows} ${coulterWord(assume.overlapRows)}:`
+      + ` крок ${result.step} м замість ${result.drillWidth} м. Площа від цього не`
+      + ' губиться — рядки під закритими сошниками кладе сусідній прохід.',
+    )
+  }
+  // Нахльост заданий, але відповідь порахована з іншим. Промовчати про це
+  // не можна: людина поставила своє число не для краси.
+  if (assume.wasOverlapRows > 0 && assume.wasOverlapRows !== assume.overlapRows) {
+    parts.push(
+      `Заданих ${assume.wasOverlapRows} ${coulterWord(assume.wasOverlapRows)} нахльоста`
+      + ` крок до ритму не зводять, тому в розрахунку ${assume.overlapRows}.`
+      + (assume.overlapRows < assume.wasOverlapRows
+        ? ' Це менше за заданий — якщо в стик без підрулювання не влучити,'
+          + ' візьміть інший спосіб зі списку.'
+        : ''),
+    )
+  }
+  parts.push('Інші способи — у списку нижче; будь-який ставиться у форму одним натисканням.')
+  return parts.join(' ')
+}
+
+const num1 = (v) => String(Math.round(v * 10) / 10).replace('.', ',')
+const coulterWord = (n) => (n % 10 === 1 && n % 100 !== 11 ? 'сошника' : 'сошників')
 
 // Номери сошників так, як їх бачить механізатор, коли сівалка розвернена.
 //
@@ -933,6 +1137,11 @@ export function fieldPlan(
   const k = result.cycle
   const shift = result.shift || 0
   const offsets = result.coulters
+  // Крок сівалки — не те саме, що її захват: із нахльостом вона
+  // переставляється на менше, і проходів на поле виходить більше.
+  const D = result.step > 0 ? result.step : W
+  const over = result.overlapRows || 0
+  const overWidth = result.overlapWidth || 0
 
   // Обсів по периметру сіють окремо й по ньому ж розвертаються, тож колія в
   // ньому не потрібна — і не влазить: комбайн і обприскувач заходять у загінку
@@ -942,7 +1151,7 @@ export function fieldPlan(
   const x1 = fw - H
   const workWidth = x1 - x0
   const workLength = fl - 2 * H
-  if (!(workWidth > W) || !(workLength > 0)) {
+  if (!(workWidth > D) || !(workLength > 0)) {
     return { tooSmall: true, fieldWidth: fw, fieldLength: fl, headland: H,
       areaHa: mm((fw * fl) / 10000) }
   }
@@ -952,11 +1161,11 @@ export function fieldPlan(
   // гаснув, не встигнувши нічого показати. Чесна відмова коштує нічого, а
   // підвисання коштує роботи.
   if (fw > LIMITS.fieldSide || fl > LIMITS.fieldSide
-    || workWidth / W > LIMITS.fieldPasses) {
+    || workWidth / D > LIMITS.fieldPasses) {
     return {
       tooBig: true, fieldWidth: fw, fieldLength: fl, headland: H,
       maxSide: LIMITS.fieldSide, maxPasses: LIMITS.fieldPasses,
-      passesNeeded: Math.round(workWidth / W),
+      passesNeeded: Math.round(workWidth / D),
       areaHa: mm((fw * fl) / 10000),
     }
   }
@@ -969,21 +1178,50 @@ export function fieldPlan(
   // але причина інша, і плутати їх не можна: вимкнена секція нарізає колію,
   // а винесена за межу просто не має де сіяти.
   const rows = offsets.length
+
+  // Чи накриває смуга під колесом це місце поля. Потрібне лише першому
+  // проходу: на ньому сошники нахльоста сіють (заходити нікуди), і якщо
+  // колесо стало саме туди, глушити доведеться їх, а не сусідові.
+  const period = result.period || S
+  const underWheel = (local) => {
+    const u = ((local % period) + period) % period
+    return result.strips.some((st) => (
+      (u >= st.from - EPS && u <= st.to + EPS)
+      || (u - period >= st.from - EPS && u - period <= st.to + EPS)
+      || (u + period >= st.from - EPS && u + period <= st.to + EPS)
+    ))
+  }
+
   const passes = []
   for (let i = 0; ; i++) {
-    const from = x0 + i * W - shift
-    if (from >= x1 - EPS) break
+    const from = x0 + i * D - shift
+    // Нова земля проходу: з нахльостом рама заходить на засіяне сусідом, і
+    // прохід, у якого нової землі вже немає, ніхто не поїде.
+    const fresh0 = i === 0 ? from : from + overWidth
+    if (fresh0 >= x1 - EPS) break
     const to = Math.min(from + W, x1)
     const inCycle = ((i % k) + k) % k
     const cyclePass = result.passes[inCycle]
-    const disabled = cyclePass.disabled
+
+    // Нахльост на першому проході не закривають — під ним ще немає чужого
+    // рядка. Але колія не зважає на номер проходу: якщо смуга лягла саме
+    // там, цей сошник глушиться, і це вже недосіяна площа.
+    const first = i === 0
+    const overlapClosed = first ? [] : cyclePass.overlapClosed ?? []
+    const disabled = first && over > 0
+      ? [
+        ...Array.from({ length: over }, (_, j) => j + 1)
+          .filter((m) => underWheel(i * D - shift + offsets[m - 1])),
+        ...cyclePass.disabled,
+      ].sort((a, b) => a - b)
+      : cyclePass.disabled
 
     const outside = []
     const sowing = []
     for (let m = 1; m <= rows; m++) {
       const x = from + offsets[m - 1]
       if (x < x0 - EPS || x > x1 + EPS) outside.push(m)
-      else if (!disabled.includes(m)) sowing.push(m)
+      else if (!disabled.includes(m) && !overlapClosed.includes(m)) sowing.push(m)
     }
 
     // Хід човником: парні проходи їдуть назад, і сівалка на них розвернена.
@@ -997,8 +1235,12 @@ export function fieldPlan(
       from: mm(Math.max(from, x0)),
       to: mm(to),
       width: mm(to - Math.max(from, x0)),
+      // Нова земля цього проходу — те, що він справді засіває. На повному
+      // проході це крок сівалки, на останньому — скільки лишилося поля.
+      fresh: mm(Math.max(0, to - Math.max(fresh0, x0))),
       full: from >= x0 - EPS && to >= from + W - EPS,
       disabled,
+      overlapClosed,
       reasons: cyclePass.reasons,
       // Вимикати на цьому проході доводиться і те, і те — разом і по порядку.
       outside,
@@ -1011,15 +1253,15 @@ export function fieldPlan(
           disabled: mirrorRows(disabled, rows),
           outside: mirrorRows(outside, rows),
           sowing: mirrorRows(sowing, rows),
+          overlapClosed: mirrorRows(overlapClosed, rows),
         }
-        : { disabled, outside, sowing },
+        : { disabled, outside, sowing, overlapClosed },
     })
   }
 
   // Колії: візерунок циклу, зсунутий на n · період. Візерунок повторюється
   // через період циклу (k проходів сівалки), а не через захват головної
   // машини: при асиметричному ритмі і при кількох машинах це різні довжини.
-  const period = result.period || S
   const strips = []
   const sprayerPasses = Math.ceil(workWidth / S)
   const cycles = Math.ceil(workWidth / period)
@@ -1044,7 +1286,7 @@ export function fieldPlan(
   let disabledRows = 0
   for (const p of passes) {
     for (const m of p.disabled) {
-      const x = x0 + (p.i - 1) * W - shift + offsets[m - 1]
+      const x = x0 + (p.i - 1) * D - shift + offsets[m - 1]
       if (x >= x0 - EPS && x <= x1 + EPS) disabledRows++
     }
   }
@@ -1065,6 +1307,9 @@ export function fieldPlan(
     headland: H,
     workWidth: mm(workWidth),
     workLength: mm(workLength),
+    step: mm(D),
+    overlapRows: over,
+    overlapWidth: mm(overWidth),
     passes,
     serpentine: !!serpentine,
     strips,

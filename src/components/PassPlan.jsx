@@ -32,6 +32,14 @@ export default function PassPlan({ result }) {
             {p.partial && (
               <div className="cycle-note">половинний: сіють лише {rangeText(p.sowingRows)}</div>
             )}
+            {/* Нахльост — не колія, і плутати їх не можна: ці сошники закриті
+                на кожному проході, крім найпершого на полі, і площі під ними
+                не губиться. */}
+            {p.overlapClosed?.length > 0 && (
+              <div className="cycle-note">
+                нахльост: {rangeText(p.overlapClosed)} закриті завжди
+              </div>
+            )}
             {p.clearances.map((c, i) => (
               <div key={i} className="cycle-note">
                 {c.label}: колесо міжряддям, до сошника {Math.round(c.gap * 100)} см

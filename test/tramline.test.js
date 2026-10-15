@@ -1,6 +1,6 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { computeTramlines, suggestions } from '../src/lib/tramline.js'
+import { computeTramlines } from '../src/lib/tramline.js'
 
 const cereal = {
   rows: 24, rowSpacing: 0.15, sprayerWidth: 18,
@@ -70,11 +70,34 @@ test('колія, кратна непарному числу міжрядь — 
   assert.deepEqual(hit[0].disabled, [5, 8], 'рядки під колесами доведеться вимкнути')
 })
 
-test('некратний захват — колія неможлива, і видно чим це лікувати', () => {
+test('некратний захват не спиняє розрахунок — береться припущення', () => {
   const r = computeTramlines({ ...cereal, sprayerWidth: 20 })
-  assert.equal(r.ok, false)
-  assert.ok(r.warnings[0].includes('не зводяться до робочого ритму'))
-  assert.ok(r.suggestions.sprayerWidths.some((o) => o.width === 18))
+  assert.equal(r.ok, true, 'відповідь мусить бути завжди')
+  assert.ok(r.assumed, 'і мусить бути сказано, що це припущення')
+  assert.ok(r.baseWidth <= 20, 'машина працює своїм захватом або вужче')
+  assert.ok(r.warnings[0].includes('націло не діляться'),
+    `перше слово відповіді — про припущення: ${r.warnings[0]}`)
+})
+
+test('припущення — це рівно те, що людина могла поставити руками', () => {
+  const r = computeTramlines({ ...cereal, sprayerWidth: 20 })
+  // Кожна машина припущення — та сама машина, тільки вужча. Ставимо ці
+  // числа у форму руками й мусимо отримати ту саму відповідь, без жодного
+  // припущення в ній.
+  const same = computeTramlines({
+    ...cereal,
+    overlapRows: r.assumed.overlapRows,
+    machines: r.assumed.option.machines.filter((m) => m.fits).map((m) => ({
+      id: m.id, label: m.label, width: m.width, base: m.id === r.assumed.baseId,
+      axles: [{ trackWidth: cereal.trackWidth, tyreWidth: cereal.tyreWidth }],
+    })),
+    margin: cereal.margin,
+  })
+  assert.equal(same.ok, true)
+  assert.equal(same.assumed, null, 'на цих числах припускати вже нічого')
+  assert.equal(same.rhythm, r.rhythm)
+  assert.equal(same.step, r.step)
+  assert.deepEqual(same.passes.map((p) => p.disabled), r.passes.map((p) => p.disabled))
 })
 
 test('втрата площі рахується від усіх рядків циклу', () => {
@@ -83,9 +106,10 @@ test('втрата площі рахується від усіх рядків ц
   assert.equal(r.lossPct, Math.round((8 / 120) * 100 * 1000) / 1000)
 })
 
-test('підказки не повторюють поточну ширину', () => {
-  const s = suggestions({ rows: 24, rowSpacing: 0.15, sprayerWidth: 18 })
-  assert.ok(!s.sprayerWidths.some((o) => Math.abs(o.width - 18) < 0.01))
+test('коли захват ділиться, жодних припущень не береться', () => {
+  const r = computeTramlines(cereal)
+  assert.equal(r.assumed, null)
+  assert.equal(r.suggestions, null)
 })
 
 // ── Усе поле ──────────────────────────────────────────────────────────────
@@ -342,9 +366,10 @@ test('асиметричний ритм розкладається на поле
   }
 })
 
-test('справді несумісні захвати досі відхиляються', () => {
+test('несумісні захвати дають відповідь, а не відмову', () => {
   const r = computeTramlines({ ...cereal, sprayerWidth: 20 })   // 5,55 проходу
-  assert.equal(r.ok, false)
+  assert.equal(r.ok, true)
+  assert.ok(r.assumed, 'але з припущенням, і воно назване')
 })
 
 test('непрактичні ритми не видаються за робочі', () => {
@@ -372,10 +397,15 @@ import { workingWidths } from '../src/lib/tramline.js'
 
 const boom16 = { rows: 24, rowSpacing: 0.15, sprayerWidth: 16 }
 
-test('штанга 16 м на сівалці 3,6 м — прямої колії немає', () => {
+test('штанга 16 м на сівалці 3,6 м — відповідь є, і з нахльостом', () => {
   const r = computeTramlines({ ...boom16, trackWidth: 2.45, tyreWidth: 0.4, margin: 0.05 })
-  assert.equal(r.ok, false)
-  assert.ok(r.suggestions.working.length > 0, 'має бути запасний хід')
+  assert.equal(r.ok, true)
+  // 16 м не кратні 15 см узагалі, тож без нахльоста тут не обійтися:
+  // найдешевше — 15,75 м робочої ширини й три сошники по засіяному.
+  assert.equal(r.baseWidth, 15.75)
+  assert.equal(r.overlapRows, 3)
+  assert.equal(r.step, 3.15)
+  assert.equal(r.rhythm, 5)
 })
 
 test('робочі ширини не перевищують штангу', () => {
@@ -385,11 +415,24 @@ test('робочі ширини не перевищують штангу', () =>
   }
 })
 
-test('перший варіант під 16 м — не чіпати сівалку, їхати на 14,4 м', () => {
+test('перший варіант під 16 м — 15,75 м і три сошники в нахльост', () => {
+  // Раніше тут першим стояло 14,4 м: заглушені секції важили стільки ж,
+  // скільки перекриття штанги. Але це різні гроші. Перекриття — подвійна
+  // доза на смузі, і то на кожній обробці за сезон; нахльост — зайвий
+  // прохід сівалки раз на поле, без утрати площі. Тому вага половинна, і
+  // перший варіант тепер той, у якого перекриття 25 см, а не 1,6 м.
   const [best] = workingWidths({ ...boom16, boomWidth: 16 })
-  assert.equal(best.width, 14.4)
-  assert.equal(best.off, 0, 'сівалку не переробляють, поки є чим заплатити перекриттям')
-  assert.equal(best.k, 4)
+  assert.equal(best.width, 15.75)
+  assert.equal(best.off, 3)
+  assert.equal(best.k, 5)
+  assert.ok(best.overlap < 0.3)
+})
+
+test('варіант без жодного нахльоста теж лишається в списку', () => {
+  const plain = workingWidths({ ...boom16, boomWidth: 16 }).find((o) => o.off === 0)
+  assert.ok(plain, 'має бути чим працювати й не чіпаючи сівалку')
+  assert.equal(plain.width, 14.4)
+  assert.equal(plain.k, 4)
 })
 
 test('найщільніше перекриття теж пропонується — ціною трьох секцій', () => {
@@ -411,11 +454,13 @@ test('різати сівалку наполовину заради перекр
 test('кожна запропонована робоча ширина справді дає колію', () => {
   for (const o of workingWidths({ ...boom16, boomWidth: 16 })) {
     const r = computeTramlines({
-      rows: o.rows, rowSpacing: 0.15, sprayerWidth: o.width,
+      rows: 24, rowSpacing: 0.15, overlapRows: o.off, sprayerWidth: o.width,
       trackWidth: 2.45, tyreWidth: 0.4, margin: 0.05,
     })
     assert.equal(r.ok, true, `${o.width} м не дає ритму`)
+    assert.equal(r.assumed, null, `${o.width} м: мусило скластися без припущень`)
     assert.equal(r.rhythm, o.k)
+    assert.equal(r.step, Math.round(o.rows * 0.15 * 1000) / 1000)
     assert.ok(r.disabledPerCycle > 0, `${o.width} м: нема чого глушити`)
   }
 })
@@ -462,4 +507,107 @@ test('за межею поля секції опиняються лише скр
     assert.ok(p.i === 1 || p.i === plan.passes.length,
       `прохід ${p.i} усередині поля не може виходити за межу`)
   }
+})
+
+// ── Нахльост на засіяне ───────────────────────────────────────────────────
+//
+// Між проходами має лишитися рівно міжряддя, а без підрулювання в це не
+// влучити. Тому заходять на засіяне навмисно й закривають крайні сошники.
+// Головне, що з цього мусить вийти на полі: рядки йдуть однаково по всій
+// ширині — ні пропуску між проходами, ні рядка, засіяного двічі.
+
+const overlapped = {
+  rows: 24, rowSpacing: 0.15, overlapRows: 3, margin: 0.1,
+  machines: [{
+    id: 'sprayer', label: 'Обприскувач', width: 15.75, base: true, active: true,
+    axles: [{ trackWidth: 1.8, tyreWidth: 0.45 }],
+  }],
+}
+
+test('з нахльостом рядки по полю йдуть однаково — без пропусків і без подвійних', () => {
+  const r = computeTramlines(overlapped)
+  assert.equal(r.ok, true)
+  assert.equal(r.step, 3.15)
+  const p = fieldPlan(r, { fieldWidth: 46, fieldLength: 950, headland: 0, rowSpacing: 0.15 })
+
+  const sown = []
+  for (const pass of p.passes) {
+    const left = (pass.i - 1) * r.step - r.shift
+    for (const m of pass.sowing) sown.push(Math.round((left + r.coulters[m - 1]) * 1000) / 1000)
+  }
+  const sorted = [...sown].sort((a, b) => a - b)
+  assert.equal(new Set(sorted).size, sorted.length, 'якийсь рядок засіяно двічі')
+  for (const x of sorted) {
+    // Усі рядки стоять на одній сітці з міжряддям 15 см, від краю поля.
+    const off = Math.abs((x / 0.15) % 1 - 0.5)
+    assert.ok(off < 1e-6, `рядок ${x} стоїть не на сітці`)
+  }
+  // Пропуски бувають лише там, де сошник вимкнений під колію: інших розривів
+  // у сходах бути не має.
+  const disabledPos = new Set()
+  for (const pass of p.passes) {
+    const left = (pass.i - 1) * r.step - r.shift
+    for (const m of pass.disabled) {
+      disabledPos.add(Math.round((left + r.coulters[m - 1]) * 1000) / 1000)
+    }
+  }
+  for (let i = 1; i < sorted.length; i++) {
+    const gap = Math.round((sorted[i] - sorted[i - 1]) * 1000) / 1000
+    if (gap <= 0.15 + 1e-9) continue
+    for (let x = sorted[i - 1] + 0.15; x < sorted[i] - 1e-9; x = Math.round((x + 0.15) * 1000) / 1000) {
+      assert.ok(disabledPos.has(Math.round(x * 1000) / 1000),
+        `між ${sorted[i - 1]} і ${sorted[i]} пропуск, якого не просили`)
+    }
+  }
+})
+
+test('сошник нахльоста стоїть точно на рядку сусіднього проходу', () => {
+  const r = computeTramlines(overlapped)
+  const rows = r.coulters
+  for (let j = 0; j < r.overlapRows; j++) {
+    // Прохід i, сошник j — та сама точка, що прохід i−1, сошник 24−3+j.
+    const mine = r.step + rows[j]
+    const neighbour = rows[r.rows - r.overlapRows + j]
+    assert.ok(Math.abs(mine - neighbour) < 1e-9,
+      `сошник ${j + 1} нахльоста: ${mine} проти ${neighbour}`)
+  }
+})
+
+test('на першому проході поля сошники нахльоста сіють', () => {
+  const r = computeTramlines(overlapped)
+  const p = fieldPlan(r, { fieldWidth: 46, fieldLength: 950, headland: 0, rowSpacing: 0.15 })
+  assert.deepEqual(p.passes[0].overlapClosed, [], 'заходити першому проходу нікуди')
+  for (const m of r.overlapClosed) {
+    assert.ok(p.passes[0].sowing.includes(m) || p.passes[0].disabled.includes(m),
+      `сошник ${m} на першому проході не робить нічого`)
+  }
+  // А далі — закриті на кожному.
+  for (const pass of p.passes.slice(1)) {
+    assert.deepEqual(pass.overlapClosed, r.overlapClosed, `прохід ${pass.i}`)
+  }
+})
+
+test('нахльост не вважається недосіяною площею', () => {
+  // Закон збереження поля: кожен метр робочої ширини або засіяний, або
+  // недосіяний під колію. Сошники нахльоста не можуть потрапити ні в те, ні
+  // в інше двічі — саме цим вони й відрізняються від вимкнених.
+  const r = computeTramlines(overlapped)
+  const p = fieldPlan(r, { fieldWidth: 46, fieldLength: 950, headland: 0, rowSpacing: 0.15 })
+  const sown = p.passes.reduce((a, x) => a + x.sowing.length, 0)
+  assert.equal(p.disabledRows, p.passes.reduce((a, x) => a + x.disabled.length, 0))
+  const covered = (sown + p.disabledRows) * 0.15
+  assert.ok(Math.abs(covered - p.workWidth) < 0.15,
+    `рядки вкривають ${covered} м із ${p.workWidth} м`)
+  assert.equal(p.lostHa, Math.round((p.disabledRows * 0.15 * p.workLength) / 10000 * 1000) / 1000)
+
+  // І головне: більший нахльост сам по собі недосіву не додає. Поле те саме,
+  // робоча ширина та сама — міняється лише те, скільком сошникам не сіяти по
+  // чужих рядках.
+  const more = computeTramlines({ ...overlapped, overlapRows: 7, machines: [{
+    ...overlapped.machines[0], width: 15.3,
+  }] })
+  const pMore = fieldPlan(more, { fieldWidth: 46, fieldLength: 950, headland: 0, rowSpacing: 0.15 })
+  assert.equal(more.overlapRows, 7)
+  assert.ok(pMore.passes.length > p.passes.length, 'нахльост — це зайві проходи')
+  assert.ok(pMore.lostHa < p.workingHa / 5, `недосів ${pMore.lostHa} га — завеликий`)
 })

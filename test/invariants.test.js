@@ -52,9 +52,7 @@ function sample(seed) {
     rows, rowSpacing, machines,
     margin: Math.round(r() * 4) / 20,
     halfStart: r() < 0.3,
-    drillTractor: r() < 0.3
-      ? { trackWidth: 1.8, tyreWidth: 0.52, closeOwnTracks: r() < 0.5 }
-      : null,
+    overlapRows: r() < 0.35 ? 1 + Math.floor(r() * 4) : 0,
     fieldWidth: 50 + Math.floor(r() * 1200),
     fieldLength: 50 + Math.floor(r() * 1600),
     headland: Math.floor(r() * 40),
@@ -148,6 +146,8 @@ test('машина не може зменшити кількість вимкн�
         machines: pin(input.machines).map((m) => (m.id === drop.id ? { ...m, active: false } : m)),
       })
       if (!less.ok || less.cycle !== full.cycle) continue
+      if (full.assumed || less.assumed || less.baseWidth !== full.baseWidth) continue
+      if (less.step !== full.step) continue
       checked++
       assert.ok(
         less.disabledPerCycle <= full.disabledPerCycle,
@@ -186,11 +186,13 @@ test('друга машина не розтягує ритм головної', 
     assert.ok(r.rhythm >= 1, `набір ${seed}: ритм ${r.rhythm}`)
     assert.equal(r.passes.length, r.cycle)
 
+    if (r.assumed) continue
     const lead = r.machines.find((m) => m.base)
     const alone = computeTramlines({
       ...input,
       machines: input.machines.map((m) => ({ ...m, active: m.id === lead.id, base: m.id === lead.id })),
     })
+    if (!alone.ok || alone.assumed) continue
     assert.ok(
       r.rhythm <= Math.max(12, alone.rhythm),
       `набір ${seed}: ритм ${r.rhythm} при власному ритмі головної ${alone.rhythm}`,
@@ -209,9 +211,15 @@ test('план поля вкриває поле рівно раз і не вих
 
     const x0 = p.headland
     const x1 = input.fieldWidth - p.headland
-    const sum = p.passes.reduce((a, x) => a + x.width, 0)
+    const sum = p.passes.reduce((a, x) => a + x.fresh, 0)
     assert.ok(Math.abs(sum - p.workWidth) < 0.05,
-      `набір ${seed}: проходи вкривають ${sum} замість ${p.workWidth}`)
+      `набір ${seed}: проходи засівають ${sum} замість ${p.workWidth}`)
+    // Рама кожного проходу не менша за його нову землю, і нахльост — це
+    // різниця між ними, а не ще один прохід.
+    for (const pass of p.passes) {
+      assert.ok(pass.fresh <= pass.width + 1e-6,
+        `набір ${seed}, прохід ${pass.i}: нової землі більше, ніж рами`)
+    }
     for (const s of p.strips) {
       assert.ok(s.centre >= x0 - 1e-6 && s.centre <= x1 + 1e-6, `набір ${seed}: колія поза полем`)
       assert.ok(s.from >= x0 - 1e-6 && s.to <= x1 + 1e-6, `набір ${seed}: смуга поза полем`)
@@ -228,6 +236,14 @@ test('план поля вкриває поле рівно раз і не вих
         assert.ok(!pass.sowing.includes(m),
           `набір ${seed}, прохід ${pass.i}: сошник ${m} і сіє, і вимкнений`)
       }
+      for (const m of pass.overlapClosed) {
+        assert.ok(!pass.sowing.includes(m),
+          `набір ${seed}, прохід ${pass.i}: сошник ${m} і сіє, і в нахльості`)
+        assert.ok(!pass.disabled.includes(m),
+          `набір ${seed}, прохід ${pass.i}: сошник ${m} і в колії, і в нахльості`)
+      }
+      assert.equal(pass.overlapClosed.length, pass.i === 1 ? 0 : r.overlapRows,
+        `набір ${seed}, прохід ${pass.i}: нахльост не той`)
     }
   }
 })

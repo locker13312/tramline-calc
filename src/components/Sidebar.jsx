@@ -20,7 +20,7 @@ const WORK = [
   { key: 'calc', label: 'Розрахунок', icon: TramlineIcon },
   { key: 'fields', label: 'Мої поля', icon: SavedIcon },
   { key: 'machines', label: 'Техніка', icon: MachineIcon },
-  { key: 'rhythms', label: 'Довідник', icon: BookIcon },
+  { key: 'ways', label: 'Способи', icon: BookIcon },
 ]
 
 export const SECTIONS = [
