@@ -31,83 +31,6 @@ const spacingOf = (v) => {
   return Number.isFinite(n) && n > 0 && n <= LIMITS.rowSpacing ? n : 0
 }
 
-export function drillWidth(rows, rowSpacing) {
-  return rows * rowSpacing
-}
-
-// Скільки проходів сівалки вкладається в один прохід обприскувача.
-export function ratioOf({ rows, rowSpacing, sprayerWidth }) {
-  const W = drillWidth(rows, rowSpacing)
-  return W > 0 ? sprayerWidth / W : 0
-}
-
-// Робочі ширини під наявну машину: скільки секцій сівалки реально сіє (r) і
-// скільки таких проходів вкладається в один її прохід (k). Перекриття — те,
-// що штанга накриває двічі; його або вимикають крайніми секціями, або
-// миряться з подвійною дозою на цій смузі.
-//
-// Це не порада поміняти техніку, а єдина відповідь, яку взагалі можна дати
-// на «16 м не діляться на 3,6 м»: захвати лишаються ті, що є, міняється
-// тільки те, якою частиною захвату працювати.
-//
-// Заглушені крайні секції — це нахльост: рама так само заходить на сусідній
-// прохід, але жоден рядок не сіється двічі й жоден не пропадає. Платять за це
-// не площею, а зайвим проходом сівалки.
-export function workingWidths({ rows, rowSpacing, boomWidth, limit = 4 }) {
-  // Кожне число мусить бути числом, і не будь-яким. `rows: Infinity` давало
-  // вічний цикл: Infinity − 1 це знову Infinity, і лічильник ніколи не
-  // доходив до двійки. Тому перевірка на скінченність, а не лише на знак.
-  if (!Number.isFinite(boomWidth) || !(boomWidth > 0) || boomWidth > LIMITS.machineWidth) return []
-  if (!Number.isFinite(rowSpacing) || !(rowSpacing > 0) || rowSpacing > LIMITS.rowSpacing) return []
-  if (!Number.isFinite(rows) || !(rows >= 2)) return []
-  const top = Math.min(Math.floor(rows), LIMITS.coulters)
-
-  const seen = new Map()
-  for (let r = top; r >= 2; r--) {
-    for (let k = 1; k <= 12; k++) {
-      const w = mm(r * rowSpacing * k)
-      if (w > boomWidth + 1e-9) break          // далі по k тільки ширше
-      const overlap = mm(boomWidth - w)
-      // Перекриття більше за чверть штанги — це вже не робота, а катання.
-      if (overlap > boomWidth / 4) continue
-      const prev = seen.get(w)
-      // Один і той самий захват дає кілька пар (r, k); лишаємо ту, де сівалка
-      // ширша — менше проходів на поле.
-      if (!prev || r > prev.rows) {
-        const overlapPct = mm((overlap / boomWidth) * 100)
-        const offPct = mm(((rows - r) / rows) * 100)
-        seen.set(w, {
-          rows: r,
-          off: rows - r,
-          k,
-          width: w,
-          overlap,
-          overlapPct,
-          offPct,
-// Дві втрати різної природи, зведені до спільної міри: скільки
-          // відсотків роботи пропадає. Перекриття — в обприскувача, заглушені
-          // секції — в сівалки. Без цього список очолюють варіанти на кшталт
-          // «заглуши 11 секцій із 24, зате перекриття на 15 см менше»:
-          // формально найточніші, а на полі — подвоєна сівба.
-          //
-          // Але й порівну їх ставити не можна. Перекриття штанги — подвійна
-          // доза на цій смузі, і то на кожній обробці за сезон, їх чотири.
-          // Заглушені секції — зайвий прохід сівалки, один раз на все поле, і
-          // ні зерна, ні площі на ньому не губиться: рядки під ними кладе
-          // сусідній прохід. Тому вага половинна, а не однакова — інакше
-          // програма радить лити двічі там, де достатньо проїхати раз.
-          cost: mm(overlapPct + offPct * OFF_WEIGHT),
-        })
-      }
-    }
-  }
-
-  return [...seen.values()]
-    .filter((o) => o.off * 3 <= top)   // нахльост більш ніж на третину сівалки не варіант
-    .sort((a, b) => a.cost - b.cost || b.rows - a.rows)
-    .slice(0, limit)
-}
-
 // Чого коштує заглушена крайня секція проти метра перекриття штанги.
 const OFF_WEIGHT = 0.5
 
@@ -126,7 +49,13 @@ export function workingSets({ geo, machines, limit = 8 }) {
   const offsets = geo?.offsets ?? []
   const rows = offsets.length
   const frame = geo?.width ?? 0
-  const active = (machines ?? []).filter((m) => m && m.width > 0 && m.active !== false)
+  // Захват мусить бути числом, і не будь-яким: `Infinity > 0` — правда, і
+  // нескінченна машина давала набір із «робочою шириною Infinity». Сюди
+  // приходить і сміття з форми, тож перевірка тут, а не лише в нормалізації.
+  const active = (machines ?? []).filter((m) => (
+    m && m.active !== false
+    && Number.isFinite(Number(m.width)) && m.width > 0 && m.width <= LIMITS.machineWidth
+  ))
   if (!active.length || rows < 2 || !(frame > 0)) return []
   const lead = active.find((m) => m.base)
     || active.slice().sort((a, b) => a.width - b.width)[0]

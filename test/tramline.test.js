@@ -386,7 +386,15 @@ test('непрактичні ритми не видаються за робоч�
   assert.deepEqual(rhythmOf(24, 6), { rhythm: 4, symmetric: false })
 })
 
-import { workingWidths } from '../src/lib/tramline.js'
+import { workingSets, drillGeometry } from '../src/lib/tramline.js'
+
+// Набори робочих ширин під один обприскувач 16 м на сівалці 24 × 15 см.
+const sets16 = (limit = 4) => workingSets({
+  geo: drillGeometry({ rows: 24, rowSpacing: 0.15 }),
+  machines: [{ id: 's', label: 'Обприскувач', width: 16, base: true }],
+  limit,
+})
+const lead16 = (set) => set.machines[0]
 
 // ── Штанга 16 м на сівалці 3,6 м ──────────────────────────────────────────
 //
@@ -408,59 +416,64 @@ test('штанга 16 м на сівалці 3,6 м — відповідь є, �
   assert.equal(r.rhythm, 5)
 })
 
-test('робочі ширини не перевищують штангу', () => {
-  for (const o of workingWidths({ ...boom16, boomWidth: 16 })) {
-    assert.ok(o.width <= 16, `${o.width} м ширше за штангу`)
-    assert.equal(o.overlap, Math.round((16 - o.width) * 1000) / 1000)
+test('робоча ширина не перевищує наявний захват', () => {
+  for (const set of sets16()) {
+    const m = lead16(set)
+    assert.ok(m.width <= 16, `${m.width} м ширше за штангу`)
+    assert.equal(m.overlap, Math.round((16 - m.width) * 1000) / 1000)
+    assert.equal(m.width, Math.round(m.k * set.step * 1000) / 1000)
   }
 })
 
-test('перший варіант під 16 м — 15,75 м і три сошники в нахльост', () => {
+test('перший набір під 16 м — 15,75 м і три сошники в нахльост', () => {
   // Раніше тут першим стояло 14,4 м: заглушені секції важили стільки ж,
   // скільки перекриття штанги. Але це різні гроші. Перекриття — подвійна
   // доза на смузі, і то на кожній обробці за сезон; нахльост — зайвий
   // прохід сівалки раз на поле, без утрати площі. Тому вага половинна, і
   // перший варіант тепер той, у якого перекриття 25 см, а не 1,6 м.
-  const [best] = workingWidths({ ...boom16, boomWidth: 16 })
-  assert.equal(best.width, 15.75)
+  const [best] = sets16()
   assert.equal(best.off, 3)
-  assert.equal(best.k, 5)
-  assert.ok(best.overlap < 0.3)
+  assert.equal(best.step, 3.15)
+  assert.equal(lead16(best).width, 15.75)
+  assert.equal(lead16(best).k, 5)
+  assert.ok(lead16(best).overlap < 0.3)
 })
 
-test('варіант без жодного нахльоста теж лишається в списку', () => {
-  const plain = workingWidths({ ...boom16, boomWidth: 16 }).find((o) => o.off === 0)
+test('набір без жодного нахльоста теж лишається в списку', () => {
+  const plain = sets16(8).find((o) => o.off === 0)
   assert.ok(plain, 'має бути чим працювати й не чіпаючи сівалку')
-  assert.equal(plain.width, 14.4)
-  assert.equal(plain.k, 4)
+  assert.equal(plain.step, 3.6)
+  assert.equal(lead16(plain).width, 14.4)
+  assert.equal(lead16(plain).k, 4)
 })
 
-test('найщільніше перекриття теж пропонується — ціною трьох секцій', () => {
-  const tight = workingWidths({ ...boom16, boomWidth: 16 })
-    .find((o) => o.width === 15.75)
-  assert.ok(tight, '15,75 м має бути в списку')
-  assert.equal(tight.rows, 21)
-  assert.equal(tight.off, 3)
-  assert.equal(tight.k, 5)
-  assert.ok(tight.overlapPct < 2)
-})
-
-test('різати сівалку наполовину заради перекриття програма не радить', () => {
-  for (const o of workingWidths({ ...boom16, boomWidth: 16, limit: 20 })) {
-    assert.ok(o.off * 3 <= 24, `${o.off} заглушених секцій із 24 — це вже інша сівалка`)
+test('дорогі набори показуються лише тоді, коли дешевих немає', () => {
+  // Перекриття в чверть захвату й більше — погана робота, і поки є
+  // нормальні набори, таких у списку немає.
+  for (const set of sets16(8)) {
+    assert.ok(set.leadFits, `${lead16(set).overlap} м перекриття — це вже катання`)
   }
+  // Але для машини 1,5 м при сівалці 3,6 м нормальних наборів не існує
+  // зовсім, і тоді краще дорогий спосіб, ніж «колія не складеться».
+  const narrow = workingSets({
+    geo: drillGeometry({ rows: 24, rowSpacing: 0.15 }),
+    machines: [{ id: 's', label: 'Обприскувач', width: 1.5, base: true }],
+  })
+  assert.ok(narrow.length > 0, 'спосіб мусить знайтися й тут')
+  assert.ok(narrow[0].step <= 1.5 + 1e-9)
 })
 
-test('кожна запропонована робоча ширина справді дає колію', () => {
-  for (const o of workingWidths({ ...boom16, boomWidth: 16 })) {
+test('кожен запропонований набір справді дає колію', () => {
+  for (const set of sets16(8)) {
+    const o = lead16(set)
     const r = computeTramlines({
-      rows: 24, rowSpacing: 0.15, overlapRows: o.off, sprayerWidth: o.width,
+      rows: 24, rowSpacing: 0.15, overlapRows: set.off, sprayerWidth: o.width,
       trackWidth: 2.45, tyreWidth: 0.4, margin: 0.05,
     })
     assert.equal(r.ok, true, `${o.width} м не дає ритму`)
     assert.equal(r.assumed, null, `${o.width} м: мусило скластися без припущень`)
     assert.equal(r.rhythm, o.k)
-    assert.equal(r.step, Math.round(o.rows * 0.15 * 1000) / 1000)
+    assert.equal(r.step, set.step)
     assert.ok(r.disabledPerCycle > 0, `${o.width} м: нема чого глушити`)
   }
 })

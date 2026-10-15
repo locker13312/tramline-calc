@@ -10,7 +10,7 @@
 
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { computeTramlines, fieldPlan, suggestTracks, workingWidths, rhythmOf, drillGeometry } from '../src/lib/tramline.js'
+import { computeTramlines, fieldPlan, suggestTracks, workingSets, rhythmOf, drillGeometry } from '../src/lib/tramline.js'
 import { solutions } from '../src/lib/solutions.js'
 import { economics } from '../src/lib/economics.js'
 import { normaliseMachines } from '../src/lib/machines.js'
@@ -305,16 +305,27 @@ test('пошук способів витримує сміття у кожном�
   }
 })
 
-test('робочі ширини не вигадують неможливого', () => {
+test('набори робочих ширин не вигадують неможливого', () => {
   for (const bad of BAD_NUMBERS) {
-    for (const field of ['rows', 'rowSpacing', 'boomWidth']) {
-      const list = workingWidths({ rows: 24, rowSpacing: 0.15, boomWidth: 16, [field]: bad })
+    for (const field of ['rows', 'rowSpacing', 'drillWidth']) {
+      const geo = drillGeometry({ rows: 24, rowSpacing: 0.15, [field]: bad })
+      const list = workingSets({
+        geo, machines: [{ id: 's', label: 'Обприскувач', width: 16, base: true }],
+      })
       assert.ok(Array.isArray(list))
-      finite(list, `робочі ширини ${field}=${JSON.stringify(bad)}`)
+      finite(list, `набори ${field}=${JSON.stringify(bad)}`)
       for (const o of list) {
-        assert.ok(o.width > 0 && o.rows >= 2 && o.overlap >= 0)
+        assert.ok(o.step > 0 && o.rows >= 2 && o.off >= 0)
+        for (const m of o.machines) assert.ok(m.width >= 0 && m.overlap >= 0)
       }
     }
+    // І на зіпсованому захваті машини: набір або є, або його немає, але
+    // ніколи не «ширина NaN».
+    const list = workingSets({
+      geo: drillGeometry({ rows: 24, rowSpacing: 0.15 }),
+      machines: [{ id: 's', label: 'Обприскувач', width: bad, base: true }],
+    })
+    finite(list, `захват машини ${JSON.stringify(bad)}`)
   }
 })
 
