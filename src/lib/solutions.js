@@ -27,7 +27,7 @@
 // у кого сусід лише з одного боку.
 
 import { computeExact, fieldPlan, workingSets } from './tramline.js'
-import { drillGeometry } from './geometry.js'
+import { drillGeometry, minGap } from './geometry.js'
 import { normaliseMachines } from './machines.js'
 import { plural } from './format.js'
 
@@ -83,11 +83,11 @@ const hasField = (f) => Number(f?.fieldWidth) > 0 && Number(f?.fieldLength) > 0
 export function solutions(input, field = {}, limit = 5) {
   const geo = drillGeometry(input)
   const rows = geo.rows
-  const spacing = geo.custom ? 0 : Number(input.rowSpacing)
-  // Своя розкладка сошників тут не перебирається: «заглушити три крайніх»
-  // має сенс лише там, де сошники стоять через однакове міжряддя. Головний
-  // розрахунок при цьому працює як завжди.
-  if (!(geo.width > 0) || rows < 2 || !(spacing > 0)) return []
+  // Міжряддя потрібне лише пораді про кінець поля (скільком сошникам не
+  // сіяти на останньому проході). Сам перебір кроків іде по позиціях
+  // сошників, тож довільна розкладка перебирається так само, як рівномірна.
+  const spacing = geo.custom ? geo.minGapValue ?? minGap(geo.offsets) : Number(input.rowSpacing)
+  if (!(geo.width > 0) || rows < 2) return []
 
   const machines = normaliseMachines(input).filter((m) => m.active)
   if (!machines.length) return []
@@ -98,7 +98,7 @@ export function solutions(input, field = {}, limit = 5) {
   // Набори робочих ширин на весь парк — від найдешевшого. Беремо з запасом,
   // бо найдешевший за перекриттям не завжди найдешевший по полю: вирішує
   // те, куди стане колесо, а це видно лише після розрахунку.
-  const sets = workingSets({ rows, rowSpacing: spacing, machines, limit: 6 })
+  const sets = workingSets({ geo, machines, limit: 6 })
   if (!sets.length) return []
 
   // Перебір у два кола, і це не передчасна оптимізація, а те, без чого

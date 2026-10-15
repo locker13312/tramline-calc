@@ -110,11 +110,21 @@ test('без поля способи теж є — просто без поча�
 test('коли шукати нема з чого — порожній список, а не вигадки', () => {
   assert.deepEqual(solutions({ rows: 0, rowSpacing: 0, machines: [] }, strip), [])
   assert.deepEqual(solutions({ rows: 24, rowSpacing: 0.15, machines: [] }, strip), [])
-  // Своя розкладка сошників тут не перебирається: «заглушити три крайніх»
-  // має сенс лише там, де сошники стоять через однакове міжряддя.
-  assert.deepEqual(
-    solutions({ ...boom16, coulters: [0.1, 0.9, 1.7, 2.5] }, strip), [],
-  )
+  assert.deepEqual(solutions({ ...boom16, machines: [{ id: 1 }] }, strip), [])
+})
+
+test('своя розкладка сошників теж отримує способи', () => {
+  // Перебір іде по позиціях сошників, а не по «секції × міжряддя», тож
+  // довільна розкладка рахується так само. Колись вона була єдиним місцем,
+  // де програма відмовлялася шукати.
+  const own = [0.1, 0.9, 1.7, 2.5, 3.3]
+  const list = solutions({ ...boom16, coulters: own, drillWidth: 3.4 }, strip)
+  assert.ok(list.length > 0)
+  for (const w of list) {
+    assert.ok(w.step > 0 && w.step <= 3.4 + 1e-9, `крок ${w.step} при рамі 3,4 м`)
+    assert.ok(w.baseWidth <= 16 + 1e-9)
+    assert.ok(w.overlapRows <= own.length - 2)
+  }
 })
 
 test('заданий нахльост способи не зменшують', () => {

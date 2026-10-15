@@ -122,20 +122,27 @@ const OFF_WEIGHT = 0.5
 // Тому варіант — це не ширина однієї машини, а набір: крок сівалки й робоча
 // ширина кожної машини під цей крок. Ширина береться найбільшою, яка в крок
 // укладається: машина працює рівно тим, що має, мінус перекриття.
-export function workingSets({ rows, rowSpacing, machines, limit = 8 }) {
+export function workingSets({ geo, machines, limit = 8 }) {
+  const offsets = geo?.offsets ?? []
+  const rows = offsets.length
+  const frame = geo?.width ?? 0
   const active = (machines ?? []).filter((m) => m && m.width > 0 && m.active !== false)
-  if (!active.length) return []
+  if (!active.length || rows < 2 || !(frame > 0)) return []
   const lead = active.find((m) => m.base)
     || active.slice().sort((a, b) => a.width - b.width)[0]
 
-  // Перебираємо кроки — а їх задає нахльост сівалки, тобто скільком крайнім
-  // сошникам не сіяти. Ціну кожного кроку вже знає workingWidths; тут до неї
-  // додається тільки те, чого вона не бачить: решта парку.
-  const steps = workingWidths({ rows, rowSpacing, boomWidth: lead.width, limit })
+  // Перебираємо кроки, а крок задає нахльост: скільком крайнім сошникам не
+  // сіяти. Перебір іде по самих позиціях сошників, а не по «секції × міжряддя»,
+  // тому однаково працює і для довільної розкладки — а колись саме на ній
+  // програма й відмовлялася рахувати.
   const out = []
-  for (const o of steps) {
-    const step = mm((rows - o.off) * rowSpacing)
+  for (let off = 0; off <= rows - 2; off++) {
+    const o = overlapOf({ overlapRows: off }, geo)
+    const step = o.step
     if (!(step > 0)) continue
+    // Скільком проходів сівалки більше через нахльост: саме це за нього й
+    // платять — зайвою соляркою й часом, раз на поле.
+    const offPct = mm((off / (rows - off)) * 100)
     const per = active.map((m) => {
       const k = Math.floor((m.width + EPS) / step)
       const width = mm(k * step)
@@ -146,24 +153,39 @@ export function workingSets({ rows, rowSpacing, machines, limit = 8 }) {
         // Перекриття більше за чверть захвату — це вже не робота, а
         // катання: машина возить по сусідньому проходу чверть себе.
         fits: k >= 1 && overlap <= m.width / 4 + EPS,
+        // А чи є в неї взагалі робоча ширина під цей крок. Це інша межа:
+        // перекриття в півмашини — поганий варіант, а машина, вужча за крок,
+        // не варіант зовсім.
+        works: k >= 1,
       }
     })
+    const leadSet = per.find((x) => x.id === lead.id)
+    if (!leadSet?.works) continue
     const good = per.filter((x) => x.fits)
-    if (!good.some((x) => x.id === lead.id)) continue
-    const overlapPct = mm(good.reduce((a, x) => a + x.overlapPct, 0) / good.length)
+    const overlapPct = good.length
+      ? mm(good.reduce((a, x) => a + x.overlapPct, 0) / good.length)
+      : leadSet.overlapPct
     out.push({
-      off: o.off, rows: rows - o.off, step, offPct: o.offPct,
+      off, rows: rows - off, step, overlapWidth: o.width, offPct,
       machines: per,
       outsiders: per.filter((x) => !x.fits),
+      leadFits: leadSet.fits,
       overlapPct,
       // Ціна набору: перекриття в середньому по парку, зайвий прохід
       // сівалки — вполовину дешевший, і окремо найдорожче — машина, що з
       // колії випала. Остання не «гірший варіант», а інша задача: колію
       // нарізали, а машина по ній не їздить.
-      cost: mm(overlapPct + o.offPct * OFF_WEIGHT + per.filter((x) => !x.fits).length * 20),
+      cost: mm(overlapPct + offPct * OFF_WEIGHT + per.filter((x) => !x.fits).length * 20),
     })
   }
-  return out.sort((a, b) => a.cost - b.cost)
+
+  // Набори, у яких головна машина працює по-людськи, і окремо — ті, де вона
+  // возить по сусідньому проходу чверть себе й більше. Другі показуємо лише
+  // тоді, коли перших немає: краще дорогий спосіб, ніж «колія не складеться».
+  const sane = out.filter((c) => c.leadFits)
+  return (sane.length ? sane : out)
+    .sort((a, b) => a.cost - b.cost)
+    .slice(0, limit)
 }
 
 // Найбільший спільний дільник — щоб звести відношення захватів до
@@ -888,13 +910,30 @@ function computeOnce(input, assume = null) {
       'зробити її за один.',
     )
   }
+  // Машина, що в колію не вклалася, — не привід її міняти. Привід працювати
+  // нею вужче: найбільша ширина, яка в крок укладається, рахується тут же й
+  // називається одразу. Без цього попередження виглядало як «ця машина
+  // зайва», хоч насправді вона робоча — просто не на повний розмах.
+  const workable = (m) => {
+    const times = Math.floor((m.width + EPS) / D)
+    if (times < 1) return null
+    const f = asFraction(mm(times * D) / D)
+    if (!f || lcm(k, f.p) > limit) return null
+    return mm(times * D)
+  }
   for (const o of outsiders) {
+    const fit = workable(o.machine)
     warnings.push(
-      o.reason === 'ratio'
-        ? `«${o.machine.label}» (${mm(o.machine.width)} м) не кратний сівалці ${mm(W)} м — ` +
+      (o.reason === 'ratio'
+        ? `«${o.machine.label}» (${mm(o.machine.width)} м) не кратний кроку сівалки ${mm(D)} м — ` +
           'у колію не вкладається, тому в розрахунку не врахований.'
         : `«${o.machine.label}» (${mm(o.machine.width)} м) вимагав би ритму ${o.wouldBe} — ` +
-          'такий цикл у кабіні не відрахувати, тому в розрахунку не врахований.',
+          'такий цикл у кабіні не відрахувати, тому в розрахунку не врахований.')
+      + (fit
+        ? ` Щоб вона їздила цією ж колією, працюйте нею ${fit} м: ` +
+          `${mm(o.machine.width - fit)} м піде в перекриття сусіднього проходу. ` +
+          'У способах цей варіант порахований цілком.'
+        : ''),
     )
   }
 
@@ -987,12 +1026,9 @@ export function computeTramlines(input) {
   // робочій відповіді — прапорцем у звіті по машинах.
   const lead = direct.base ?? direct.machines?.find((m) => m.base) ?? null
   const geo = drillGeometry(input)
-  // Своя розкладка сошників тут не перебирається: нахльост на «стільком
-  // крайнім не сіяти» має сенс лише при однаковому міжрядді.
-  const options = lead && !geo.custom
+  const options = lead
     ? workingSets({
-      rows: geo.rows,
-      rowSpacing: input.rowSpacing,
+      geo,
       machines: normaliseMachines(input).filter((m) => m.active),
       limit: 8,
     })
