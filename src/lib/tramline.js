@@ -55,7 +55,15 @@ export function workingSets({ geo, machines, limit = 8 }) {
   const active = (machines ?? []).filter((m) => (
     m && m.active !== false
     && Number.isFinite(Number(m.width)) && m.width > 0 && m.width <= LIMITS.machineWidth
-  ))
+  )).map((m) => ({
+    ...m,
+    // Підбір шукає робочу ширину від розмаху машини, а не від тієї, якою
+    // вона працює зараз: інакше вже поставлений спосіб звужував би список
+    // наступних, і так щоразу.
+    full: Number.isFinite(Number(m.fullWidth)) && m.fullWidth >= m.width
+      ? Number(m.fullWidth)
+      : m.width,
+  }))
   if (!active.length || rows < 2 || !(frame > 0)) return []
   const lead = active.find((m) => m.base)
     || active.slice().sort((a, b) => a.width - b.width)[0]
@@ -73,15 +81,15 @@ export function workingSets({ geo, machines, limit = 8 }) {
     // платять — зайвою соляркою й часом, раз на поле.
     const offPct = mm((off / (rows - off)) * 100)
     const per = active.map((m) => {
-      const k = Math.floor((m.width + EPS) / step)
+      const k = Math.floor((m.full + EPS) / step)
       const width = mm(k * step)
-      const overlap = mm(m.width - width)
+      const overlap = mm(m.full - width)
       return {
-        id: m.id, label: m.label, was: mm(m.width), width, k, overlap,
-        overlapPct: mm((overlap / m.width) * 100),
+        id: m.id, label: m.label, was: mm(m.full), width, k, overlap,
+        overlapPct: mm((overlap / m.full) * 100),
         // Перекриття більше за чверть захвату — це вже не робота, а
         // катання: машина возить по сусідньому проходу чверть себе.
-        fits: k >= 1 && overlap <= m.width / 4 + EPS,
+        fits: k >= 1 && overlap <= m.full / 4 + EPS,
         // А чи є в неї взагалі робоча ширина під цей крок. Це інша межа:
         // перекриття в півмашини — поганий варіант, а машина, вужча за крок,
         // не варіант зовсім.
@@ -267,7 +275,13 @@ function computeOnce(input, assume = null) {
     if (!assume) return m
     const width = assume.widths.get(m.id)
     return width > 0
-      ? { ...m, width: mm(width), base: m.id === assume.baseId, tooWide: false }
+      ? {
+        ...m,
+        width: mm(width),
+        fullWidth: Math.max(m.fullWidth ?? m.width, m.width),
+        base: m.id === assume.baseId,
+        tooWide: false,
+      }
       : { ...m, base: false }
   })
   // Межа на кількість машин: більше десяти на одній колії не їздить навіть у
@@ -765,6 +779,7 @@ function computeOnce(input, assume = null) {
     const isFitting = fitting.includes(m)
     const report = {
       id: m.id, kind: m.kind, label: m.label, width: mm(m.width),
+      fullWidth: mm(Math.max(m.fullWidth ?? m.width, m.width)),
       axles: m.axles, margin: m.margin, passesPerSeason: m.passes,
       active: m.active, base: m === base,
       // Крок колій програма вибирає сама — найвужчою машиною, — але господар

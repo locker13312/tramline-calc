@@ -108,7 +108,10 @@ function MachineRow({ m, i, base, onPick }) {
         <i className="mdot" aria-hidden="true" />
         <b>{m.label}</b>
         <span className="mrow-w">
-          {num(m.width)} м · база {m.axles.map((a) => num(a.trackWidth)).join(' / ')} м
+          {m.fullWidth > m.width + 0.001
+            ? `${num(m.width)} з ${num(m.fullWidth)} м`
+            : `${num(m.width)} м`}
+          {' · '}база {m.axles.map((a) => num(a.trackWidth)).join(' / ')} м
         </span>
         {m.base && <span className="mbadge is-base">крок колій</span>}
       </div>

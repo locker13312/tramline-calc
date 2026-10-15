@@ -124,11 +124,18 @@ export function normaliseMachines(input) {
       .map((a) => ({ trackWidth: good(a.trackWidth), tyreWidth: good(a.tyreWidth) }))
       .filter((a) => a.trackWidth > 0 && a.tyreWidth > 0)
     const width = good(m.width)
+    // Розмах машини й ширина, якою вона працює, — різні числа. Штанга 16 м,
+    // що працює на 15,75, лишається штангою 16 м: саме з розмаху підбір
+    // шукає робочі ширини наступного разу. Без цього кожне натискання
+    // «поставити спосіб» відкушувало від машини ще шматок, і за три
+    // натискання 16 м перетворювалися на 13.
+    const full = good(m.fullWidth)
     return {
       id: typeof m.id === 'string' && m.id ? m.id : `m${i + 1}`,
       kind: typeof m.kind === 'string' ? m.kind : 'other',
       label: typeof m.label === 'string' && m.label.trim() ? m.label : kindOf(m.kind).label,
       width,
+      fullWidth: full >= width ? full : width,
       axles,
       // Запас спільний на весь парк, якщо машина не задала свій. Мінусовий
       // зробив би смугу вужчою за шину, тож нижня межа — нуль.

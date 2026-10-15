@@ -137,3 +137,42 @@ test('заданий нахльост способи не зменшують', (
   const r = computeTramlines({ ...boom16, overlapRows: 4 })
   assert.ok(r.overlapRows >= 4, `задано 4, порахувало ${r.overlapRows}`)
 })
+
+test('поставлений спосіб не відкушує від машини — розмах лишається', () => {
+  // Найгірше, що могло статися з цим списком: поставив спосіб «працювати
+  // 15,75 м із 16», і наступного разу програма шукає вже від 15,75. За три
+  // натискання штанга 16 м перетворювалася на 13 — і жодного попередження.
+  const first = solutions(boom16, strip)
+  const after = { ...boom16, ...first[0].patch }
+  assert.equal(after.machines[0].width, 15.75)
+  assert.equal(after.machines[0].fullWidth, 16, 'розмах мусить лишитися')
+
+  const second = solutions(after, strip)
+  assert.deepEqual(
+    second.map((w) => `${w.baseWidth}:${w.overlapRows}`),
+    first.map((w) => `${w.baseWidth}:${w.overlapRows}`),
+    'той самий список способів, скільки б разів їх не ставили',
+  )
+  for (const w of second) {
+    assert.equal(w.baseFull, 16, `${w.id}: розмах з'їхав на ${w.baseFull}`)
+    assert.ok(w.baseWidth <= 16 + 1e-9)
+  }
+
+  // І втретє — теж те саме.
+  const third = solutions({ ...after, ...second[2].patch }, strip)
+  assert.deepEqual(
+    third.map((w) => `${w.baseWidth}:${w.overlapRows}`),
+    first.map((w) => `${w.baseWidth}:${w.overlapRows}`),
+  )
+})
+
+test('число, вписане у форму руками, — це розмах машини', () => {
+  // Людина вписала 16 — значить, машина 16 м, і попередня робоча ширина
+  // більше ні до чого.
+  const list = solutions({
+    ...boom16,
+    machines: [{ ...boom16.machines[0], width: 16, fullWidth: 16 }],
+  }, strip)
+  assert.equal(list[0].baseFull, 16)
+  assert.equal(list[0].baseWidth, 15.75)
+})

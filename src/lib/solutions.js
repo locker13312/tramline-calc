@@ -133,9 +133,12 @@ export function solutions(input, field = {}, limit = 5) {
         halfStart,
         machines: machines.map((m) => {
           const w = o.machines.find((x) => x.id === m.id)
+          // Розмах машини зберігається окремо від робочої ширини: спосіб
+          // міняє друге, а перше лишається тим, що стоїть у дворі.
+          const full = Math.max(m.fullWidth ?? m.width, m.width)
           return w?.fits
-            ? { ...m, width: w.width, base: m.id === lead.id }
-            : { ...m, base: false }
+            ? { ...m, width: w.width, fullWidth: full, base: m.id === lead.id }
+            : { ...m, fullWidth: full, base: false }
         }),
       }
       // Рахуємо строго: спосіб, у якому розрахунок сам щось припустив,
@@ -231,8 +234,9 @@ function describe({ o, halfStart, patch, result, plan, lead, spacing, other = nu
     baseId: lead.id,
     baseLabel: lead.label,
     baseWidth: result.baseWidth,
-    baseWas: mm(lead.width),
-    boomOverlap: mm(lead.width - result.baseWidth),
+    baseWas: mm(Math.max(lead.fullWidth ?? lead.width, lead.width)),
+    boomOverlap: mm(Math.max(lead.fullWidth ?? lead.width, lead.width) - result.baseWidth),
+    baseFull: mm(Math.max(lead.fullWidth ?? lead.width, lead.width)),
     boomOverlapPct: o.overlapPct,
     // Хто працює якою шириною й хто лишився поза колією — по машинах.
     machines: o.machines.map((m) => ({ ...m })),

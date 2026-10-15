@@ -85,7 +85,13 @@ export default function MachineList({ machines, setMachines, result }) {
                     {m.label || kind.label}
                   </span>
                   <span className="mcard-sum">
-                    {num(m.width)} м · база {m.axles.map((a) => num(a.trackWidth)).join(' / ')} м
+                    {/* Коли машина працює вужче за свій розмах — це рішення,
+                        яке хтось прийняв (поставив спосіб), і воно мусить
+                        бути видно просто в списку, а не лише в розрахунку. */}
+                    {m.fullWidth > m.width + 0.001
+                      ? `${num(m.width)} з ${num(m.fullWidth)} м`
+                      : `${num(m.width)} м`}
+                    {' · '}база {m.axles.map((a) => num(a.trackWidth)).join(' / ')} м
                     {' · '}шина {m.axles.map((a) => num(a.tyreWidth)).join(' / ')} м
                   </span>
                 </button>
@@ -186,10 +192,13 @@ export default function MachineList({ machines, setMachines, result }) {
                     </label>
                     <label>
                       Захват, м
+                      {/* Число, яке вводить людина, — це розмах машини:
+                          те, що стоїть у дворі. Робочу ширину ставить спосіб,
+                          і вона живе окремим полем. */}
                       <NumField
-                        min="0.5" step="0.1" value={m.width}
+                        min="0.5" step="0.1" value={m.fullWidth ?? m.width}
                         list={m.kind === 'combine' || m.kind === 'cart' ? 'header-widths' : 'sprayer-widths'}
-                        onValue={(v) => patch(m.id, { width: v })}
+                        onValue={(v) => patch(m.id, { width: v, fullWidth: v })}
                       />
                     </label>
                   </div>
