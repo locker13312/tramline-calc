@@ -4,6 +4,7 @@ import { solutions } from '../lib/solutions'
 import { economics } from '../lib/economics'
 import { CROPS, CHASSIS_PRESETS } from '../lib/presets'
 import { defaultMachines } from '../lib/machines'
+import { DRIVE_MODES, driveMode, headlandFor } from '../lib/driving'
 import { num, plural, rangeText } from '../lib/format'
 import NumField from './NumField'
 import Verdict from './Verdict'
@@ -62,10 +63,17 @@ export default function Calculator({
       rowSpacing: input.rowSpacing,
       headland: input.headland,
       serpentine: input.serpentine,
+      drive: input.drive,
+      land: input.land,
     }),
     [result, input.fieldWidth, input.fieldLength, input.rowSpacing, input.headland,
-      input.serpentine],
+      input.serpentine, input.drive, input.land],
   )
+
+  // Скільки обсіву брати під розворот — цілим числом кроків сівалки.
+  const turnHints = result.ok && result.step > 0
+    ? ['loop', 'free'].map((turn) => headlandFor({ step: result.step, turn })).filter(Boolean)
+    : []
 
   const advice = useMemo(() => suggestTracks({ ...input, machines }), [input, machines])
 
@@ -175,7 +183,23 @@ export default function Calculator({
               Обсів по периметру, м
               <NumField min="0" step="1" value={input.headland} onValue={onNum('headland')} />
             </label>
-            <p className="note">Смуга для розворотів. Зазвичай два-три заходи обприскувача.</p>
+            <p className="note">
+              Смуга для розворотів. Її беруть цілим числом проходів сівалки,
+              інакше остання смуга обсіву ляже не там.
+              {turnHints.length > 0 && ' Під цю сівалку:'}
+              {turnHints.map((h, n) => (
+                <span key={h.turn}>
+                  {n > 0 ? ', ' : ' '}
+                  <button type="button" className="btn btn-sm btn-quiet"
+                    onClick={() => set('headland', h.width)}>
+                    {num(h.width)} м
+                  </button>
+                  {' '}{h.turn === 'loop' ? 'з петлею' : 'без петлі'} ({h.passes}{' '}
+                  {plural(h.passes, 'прохід', 'проходи', 'проходів')})
+                </span>
+              ))}
+              {turnHints.length > 0 && '.'}
+            </p>
 
             <label className="check">
               <input type="checkbox" checked={!!input.serpentine}
@@ -187,6 +211,26 @@ export default function Calculator({
               проході сівалка розвернена, і сошник, названий по полю, глушиться з
               протилежного боку — тобто не той. Смуги від цього не зсуваються:
               перераховуються номери, які називають у кабіні.
+            </p>
+
+            <label>
+              Порядок заїздів
+              <select value={driveMode(input.drive).key}
+                onChange={(e) => set('drive', e.target.value)}>
+                {DRIVE_MODES.map((m) => <option key={m.key} value={m.key}>{m.label}</option>)}
+              </select>
+            </label>
+            {driveMode(input.drive).key === 'lands' && (
+              <label>
+                Загінка, проходів сівалки
+                <NumField min="2" step="2" value={input.land} onValue={onNum('land')} />
+              </label>
+            )}
+            <p className="note">
+              {driveMode(input.drive).hint}
+              {driveMode(input.drive).key !== 'row'
+                && ' Смуги лягають ті самі, але в списку проходів зʼявиться номер заїзду — '
+                  + 'той, який рахує механізатор, — і напрямок човника береться з нього.'}
             </p>
 
             <div className="derived">

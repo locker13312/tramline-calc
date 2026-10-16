@@ -110,6 +110,12 @@ const scenarios = {
   // там з'являється колонка «Хід» та інший список сошників.
   'хід човником': { ...DEFAULTS, serpentine: true, __section: 'field' },
 
+  // Не підряд: у таблиці з'являється колонка «Заїзд», а загінкам — поле
+  // ширини загінки. Сміття в способі руху має давати рух підряд.
+  'через одну смугу': { ...DEFAULTS, serpentine: true, drive: 'skip', __section: 'field' },
+  'загінками': { ...DEFAULTS, serpentine: true, drive: 'lands', land: 6, __section: 'field' },
+  'сміття в способі руху': { ...DEFAULTS, drive: 'абв', land: -3, __section: 'field' },
+
   'типові машини з defaultMachines': { ...DEFAULTS, machines: defaultMachines() },
 }
 

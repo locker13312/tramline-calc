@@ -17,7 +17,11 @@ export default function PassList({ plan, rowSpacing, custom }) {
 
   const passes = plan.passes
   const tramlinePasses = passes.filter((p) => p.tramline)
-  const shown = onlyTramlines ? tramlinePasses : passes
+  // Не підряд — таблиця йде в порядку заїздів: механізатор читає її рядок
+  // за рядком так, як їде, а смугу поля бачить у сусідній колонці.
+  const ordered = plan.drive && plan.drive !== 'row'
+  const byEntry = ordered ? [...passes].sort((a, b) => a.entry - b.entry) : passes
+  const shown = onlyTramlines ? byEntry.filter((p) => p.tramline) : byEntry
 
   return (
     <div className="panel">
@@ -67,7 +71,8 @@ export default function PassList({ plan, rowSpacing, custom }) {
         <table className="passtable">
           <thead>
             <tr>
-              <th>Прохід</th>
+              {ordered && <th>Заїзд</th>}
+              <th>{ordered ? 'Смуга' : 'Прохід'}</th>
               {plan.serpentine && <th>Хід</th>}
               <th>Від краю, м</th>
               <th>Що вимкнути</th>
@@ -77,6 +82,7 @@ export default function PassList({ plan, rowSpacing, custom }) {
           <tbody>
             {shown.map((p) => (
               <tr key={p.i} className={p.tramline ? 'is-hit' : undefined}>
+                {ordered && <td className="pt-n">{p.entry}</td>}
                 <td className="pt-n">
                   {p.i}
                   {p.tramline && <i className="pt-tag">колія</i>}
@@ -143,6 +149,7 @@ export default function PassList({ plan, rowSpacing, custom }) {
 
 function passTitle(p) {
   const parts = [`прохід ${p.i}`]
+  if (p.entry !== p.i) parts.push(`заїзд ${p.entry}`)
   if (p.back) parts.push('назад')
   if (p.tramline) parts.push(`вимкнути ${rangeText(p.cab.disabled)}`)
   else parts.push('сіють усі сошники')

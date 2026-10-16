@@ -511,3 +511,63 @@ test('чужа колісна база комбайна дорожча за св
   assert.ok(alien.disabledPerCycle > own.disabledPerCycle,
     `своя база ${own.disabledPerCycle}, чужа ${alien.disabledPerCycle}`)
 })
+
+// ── Звірка з паперовим підручником ────────────────────────────────────────
+//
+// Найнадійніша перевірка розрахунку — не власний тест, а чуже число,
+// пораховане без нас. Посібник з механізованих робіт для агрегату
+// Т-150-05 + СП-11 + 3×СЗ-3,6А (три сівалки по 24 сошники, разом 10,8 м)
+// пише: технологічна колія 1800 мм, ширина доріжок 450 мм, «заслінки
+// встановлюють на 6, 7, 18 і 19 висіваючі апарати».
+//
+// Якщо модель правильна, вона мусить назвати ті самі апарати — сама, з
+// геометрії, нічого не знаючи про цей агрегат.
+test('підручниковий агрегат: ті самі 6, 7, 18 і 19 апарати', () => {
+  const r = computeTramlines({
+    rows: 72, rowSpacing: 0.15, margin: 0.05,
+    machines: [{
+      id: 's', label: 'Обприскувач', width: 10.8, base: true, active: true,
+      axles: [{ trackWidth: 1.8, tyreWidth: 0.3 }],
+    }],
+  })
+  assert.equal(r.ok, true)
+  assert.equal(r.rhythm, 1, 'захват машини дорівнює захвату агрегату')
+  assert.deepEqual(r.passes[0].disabled, [30, 31, 42, 43])
+
+  // Ті самі номери в нумерації окремої сівалки — як у посібнику.
+  const perDrill = r.passes[0].disabled.map((m) => ({
+    drill: Math.ceil(m / 24), slot: ((m - 1) % 24) + 1,
+  }))
+  assert.deepEqual(perDrill, [
+    { drill: 2, slot: 6 }, { drill: 2, slot: 7 },
+    { drill: 2, slot: 18 }, { drill: 2, slot: 19 },
+  ])
+
+  // І ширина доріжки та сама: два закриті сошники лишають 450 мм без сходів.
+  assert.equal(r.disabledPerCycle, 4)
+  assert.equal(Math.round(3 * 0.15 * 1000), 450)
+})
+
+// Підбір бази мовчки зникав, щойно вмикали нахльост: відношення захватів
+// рахувалося від рами сівалки, а не від її кроку, і до дробу не зводилося.
+test('порада про колісну базу не зникає й не бреше з нахльостом', () => {
+  const row = (overlapRows, width, track) => ({
+    rows: 12, rowSpacing: 0.7, margin: 0.1, overlapRows,
+    machines: [{
+      id: 's', label: 'Обприскувач', width, base: true, active: true,
+      axles: [{ trackWidth: track, tyreWidth: 0.3 }],
+    }],
+  })
+  for (const [overlapRows, width] of [[0, 16.8], [1, 15.4], [2, 14]]) {
+    const advice = suggestTracks(row(overlapRows, width, 2.1))
+    const options = advice?.machines?.[0]?.options ?? []
+    assert.ok(options.length > 0, `нахльост ${overlapRows}: поради немає зовсім`)
+    for (const o of options) {
+      const r = computeTramlines(row(overlapRows, width, o.track))
+      assert.equal(r.ok, true, `нахльост ${overlapRows}, база ${o.track}: нема відповіді`)
+      assert.equal(r.disabledPerCycle, 0,
+        `нахльост ${overlapRows}: обіцяли, що база ${o.track} м нічого не глушить, `
+        + `а глушиться ${r.disabledPerCycle}`)
+    }
+  }
+})

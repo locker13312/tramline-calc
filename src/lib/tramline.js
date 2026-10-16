@@ -17,6 +17,7 @@
 
 import { drillGeometry, minGap, overlapOf, resolveMargin, LIMITS } from './geometry.js'
 import { normaliseMachines } from './machines.js'
+import { passOrder, driveMode } from './driving.js'
 
 const EPS = 1e-9
 const mm = (v) => Math.round(v * 1000) / 1000
@@ -526,7 +527,7 @@ function computeOnce(input, assume = null) {
     // точно в міжряддя.
     const phaseGrid = (C) => {
       const round = new Set([0])
-      for (const g of [lead.width / 2, W / 2, C / 2]) {
+      for (const g of [lead.width / 2, D / 2, C / 2]) {
         if (!(g > EPS)) continue
         // Крок може бути як завгодно малим проти захвату, тож кількість
         // значень обмежуємо явно: сітка — спосіб знайти відповідь, а не
@@ -1100,7 +1101,10 @@ export const mirrorRows = (list, rows) =>
 // неповним, і саме там ховаються зайві колії та недосіяні смуги.
 export function fieldPlan(
   result,
-  { fieldWidth, fieldLength, rowSpacing, headland = 0, serpentine = false } = {},
+  {
+    fieldWidth, fieldLength, rowSpacing, headland = 0, serpentine = false,
+    drive = null, land = 0,
+  } = {},
 ) {
   // Сторона поля мусить бути числом, і скінченним. `Infinity > 0` — правда,
   // і далі вона протікала аж у відповідь: «поле Infinity га, проходів
@@ -1204,14 +1208,14 @@ export function fieldPlan(
       else if (!disabled.includes(m) && !overlapClosed.includes(m)) sowing.push(m)
     }
 
-    // Хід човником: парні проходи їдуть назад, і сівалка на них розвернена.
-    // Номери по полю лишаються ті самі (геометрія не міняється), а в кабіні
-    // ті самі секції звуться дзеркально — саме їх і треба називати вголос.
-    const back = serpentine && i % 2 === 1
 
     passes.push({
       i: i + 1,
       cycleN: inCycle + 1,
+      // back і entry дописуються нижче: вони залежать від того, в якому
+      // порядку по полю їдуть, а це видно лише коли всі проходи вже є.
+      back: false,
+      entry: i + 1,
       from: mm(Math.max(from, x0)),
       to: mm(to),
       width: mm(to - Math.max(from, x0)),
@@ -1226,18 +1230,34 @@ export function fieldPlan(
       outside,
       sowing,
       tramline: disabled.length > 0,
-      back,
-      // Те саме, але номерами з кабіни. Без човника збігається з полем.
-      cab: back
-        ? {
-          disabled: mirrorRows(disabled, rows),
-          outside: mirrorRows(outside, rows),
-          sowing: mirrorRows(sowing, rows),
-          overlapClosed: mirrorRows(overlapClosed, rows),
-        }
-        : { disabled, outside, sowing, overlapClosed },
+      // Номери з кабіни дописуються разом із напрямком: поки невідомо, чи
+      // сівалка розвернена, дзеркалити нема чого.
+      cab: { disabled, outside, sowing, overlapClosed },
     })
   }
+
+  // ── Порядок заїздів ────────────────────────────────────────────────────
+  //
+  // Проходи вище пораховані від краю поля — так лягають смуги. Але їдуть
+  // по них не завжди підряд, і механізатор рахує свої заїзди. Тому кожному
+  // проходу дописується номер заїзду, а напрямок береться саме з нього:
+  // на ході через одну другий заїзд — це третя смуга, і сівалка на ній уже
+  // розвернена. Рахувати напрямок по місцю смуги означало б дзеркалити не
+  // ті проходи, тобто глушити не ті сошники.
+  const order = passOrder(passes.length, { mode: drive, land })
+  order.forEach((pos, n) => {
+    const pass = passes[pos]
+    if (!pass) return
+    pass.entry = n + 1
+    pass.back = serpentine && n % 2 === 1
+    if (!pass.back) return
+    pass.cab = {
+      disabled: mirrorRows(pass.disabled, rows),
+      outside: mirrorRows(pass.outside, rows),
+      sowing: mirrorRows(pass.sowing, rows),
+      overlapClosed: mirrorRows(pass.overlapClosed, rows),
+    }
+  })
 
   // Колії: візерунок циклу, зсунутий на n · період. Візерунок повторюється
   // через період циклу (k проходів сівалки), а не через захват головної
@@ -1292,6 +1312,8 @@ export function fieldPlan(
     overlapWidth: mm(overWidth),
     passes,
     serpentine: !!serpentine,
+    drive: driveMode(drive).key,
+    land: Math.max(0, Math.floor(Number(land)) || 0),
     strips,
     sprayerPasses,
     basePasses: sprayerPasses,
@@ -1322,9 +1344,9 @@ const TRACK_MIN = 1.2
 const TRACK_MAX = 3.6
 const TRACK_STEP = 0.05
 
-// Відстань від точки до найближчого сошника. Сітка сошників періодична з
-// періодом захвату сівалки, тож зводимо точку в один прохід і шукаємо
-// найближчу позицію в розкладці — так працює і нерівномірна сівалка.
+// Відстань від точки до найближчого рядка. Сітка рядків періодична з кроком
+// сівалки (з нахльостом він менший за раму), тож зводимо точку в один крок
+// і шукаємо найближчу позицію — так працює і нерівномірна сівалка.
 function distanceToCoulter(x, offsets, W) {
   const u = ((x % W) + W) % W
   let best = Infinity
@@ -1334,7 +1356,10 @@ function distanceToCoulter(x, offsets, W) {
   return best
 }
 
-// Значення колісної бази, за яких жодне колесо машини не стає на сошник.
+// Значення колісної бази, за яких жодне колесо машини не стає на рядок.
+//
+// offsets тут — позиції рядків усередині одного кроку сівалки, а W — сам
+// крок. Без нахльоста це те саме, що розкладка сошників і захват рами.
 export function trackOptionsFor({ machine, offsets, W, k, halfStart = false, limit = 4 }) {
   const f = asFraction(machine.width / W)
   if (!f) return null
@@ -1405,15 +1430,29 @@ export function suggestTracks(input) {
   const all = normaliseMachines(input).filter((m) => m.active && m.axles.length)
   if (!all.length) return null
 
+  // Сітка рядків на полі періодична з кроком сівалки, а не з її рамою, і
+  // складається лише з тих сошників, що справді сіють: під нахльостом
+  // крайні закриті, а рядки під ними кладе сусідній прохід. Рахувати базу
+  // по рамі означало б шукати колесо між рядками, яких там немає — а при
+  // нахльості відношення захватів до рами взагалі не зводилося до дробу, і
+  // вся порада про базу мовчки зникала.
+  const over = overlapOf(input, geo)
+  const D = over.step > 0 ? over.step : W
+  const sowing = geo.offsets
+    .slice(over.step > 0 ? over.rows : 0)
+    .map((o) => mm(((o % D) + D) % D))
+    .sort((a, b) => a - b)
+  if (sowing.length < 2) return null
+
   const base = all.find((m) => m.base) || all[0]
-  const baseFrac = asFraction(base.width / W)
+  const baseFrac = asFraction(base.width / D)
   if (!baseFrac) return null
   let k = baseFrac.p
   const limit = Math.max(MAX_RHYTHM, baseFrac.p)
   const fitting = [base]
   for (const m of all) {
     if (m === base) continue
-    const f = asFraction(m.width / W)
+    const f = asFraction(m.width / D)
     if (!f) continue
     const next = lcm(k, f.p)
     if (next > limit) continue
@@ -1424,7 +1463,7 @@ export function suggestTracks(input) {
   const per = fitting.map((m) => ({
     id: m.id, label: m.label, kind: m.kind, width: m.width,
     axles: m.axles,
-    ...trackOptionsFor({ machine: m, offsets: geo.offsets, W, k, halfStart: input.halfStart }),
+    ...trackOptionsFor({ machine: m, offsets: sowing, W: D, k, halfStart: input.halfStart }),
   }))
 
   // Спільні значення: ті, що минають сошники в усіх машин одночасно.
