@@ -17,7 +17,6 @@
 
 import { drillGeometry, minGap, overlapOf, resolveMargin, LIMITS } from './geometry.js'
 import { normaliseMachines } from './machines.js'
-import { passOrder, driveMode } from './driving.js'
 
 const EPS = 1e-9
 const mm = (v) => Math.round(v * 1000) / 1000
@@ -1118,10 +1117,7 @@ export const mirrorRows = (list, rows) =>
 // неповним, і саме там ховаються зайві колії та недосіяні смуги.
 export function fieldPlan(
   result,
-  {
-    fieldWidth, fieldLength, rowSpacing, headland = 0, serpentine = false,
-    drive = null, land = 0,
-  } = {},
+  { fieldWidth, fieldLength, rowSpacing, headland = 0, serpentine = false } = {},
 ) {
   // Сторона поля мусить бути числом, і скінченним. `Infinity > 0` — правда,
   // і далі вона протікала аж у відповідь: «поле Infinity га, проходів
@@ -1227,14 +1223,15 @@ export function fieldPlan(
       else if (!disabled.includes(m) && !overlapClosed.includes(m)) sowing.push(m)
     }
 
+    // Хід човником: парні проходи їдуть назад, і сівалка на них розвернена.
+    // Номери по полю лишаються ті самі (геометрія не міняється), а в кабіні
+    // ті самі секції звуться дзеркально — саме їх і треба називати вголос.
+    const back = serpentine && i % 2 === 1
 
     passes.push({
       i: i + 1,
       cycleN: inCycle + 1,
-      // back і entry дописуються нижче: вони залежать від того, в якому
-      // порядку по полю їдуть, а це видно лише коли всі проходи вже є.
-      back: false,
-      entry: i + 1,
+      back,
       from: mm(Math.max(from, x0)),
       to: mm(to),
       width: mm(to - Math.max(from, x0)),
@@ -1249,34 +1246,17 @@ export function fieldPlan(
       outside,
       sowing,
       tramline: disabled.length > 0,
-      // Номери з кабіни дописуються разом із напрямком: поки невідомо, чи
-      // сівалка розвернена, дзеркалити нема чого.
-      cab: { disabled, outside, sowing, overlapClosed },
+      // Те саме, але номерами з кабіни. Без човника збігається з полем.
+      cab: back
+        ? {
+          disabled: mirrorRows(disabled, rows),
+          outside: mirrorRows(outside, rows),
+          sowing: mirrorRows(sowing, rows),
+          overlapClosed: mirrorRows(overlapClosed, rows),
+        }
+        : { disabled, outside, sowing, overlapClosed },
     })
   }
-
-  // ── Порядок заїздів ────────────────────────────────────────────────────
-  //
-  // Проходи вище пораховані від краю поля — так лягають смуги. Але їдуть
-  // по них не завжди підряд, і механізатор рахує свої заїзди. Тому кожному
-  // проходу дописується номер заїзду, а напрямок береться саме з нього:
-  // на ході через одну другий заїзд — це третя смуга, і сівалка на ній уже
-  // розвернена. Рахувати напрямок по місцю смуги означало б дзеркалити не
-  // ті проходи, тобто глушити не ті сошники.
-  const order = passOrder(passes.length, { mode: drive, land })
-  order.forEach((pos, n) => {
-    const pass = passes[pos]
-    if (!pass) return
-    pass.entry = n + 1
-    pass.back = serpentine && n % 2 === 1
-    if (!pass.back) return
-    pass.cab = {
-      disabled: mirrorRows(pass.disabled, rows),
-      outside: mirrorRows(pass.outside, rows),
-      sowing: mirrorRows(pass.sowing, rows),
-      overlapClosed: mirrorRows(pass.overlapClosed, rows),
-    }
-  })
 
   // Колії: візерунок циклу, зсунутий на n · період. Візерунок повторюється
   // через період циклу (k проходів сівалки), а не через захват головної
@@ -1331,8 +1311,6 @@ export function fieldPlan(
     overlapWidth: mm(overWidth),
     passes,
     serpentine: !!serpentine,
-    drive: driveMode(drive).key,
-    land: Math.max(0, Math.floor(Number(land)) || 0),
     strips,
     sprayerPasses,
     basePasses: sprayerPasses,

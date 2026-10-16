@@ -166,7 +166,7 @@ export default function App({ startTab = 'calc', startScreen }) {
       { ...lazy, machines: lazy.machines ?? defaultMachines() },
       {
         fieldWidth: lazy.fieldWidth, fieldLength: lazy.fieldLength,
-        headland: lazy.headland, serpentine: lazy.serpentine,
+        serpentine: true,
       },
       6,
     ),

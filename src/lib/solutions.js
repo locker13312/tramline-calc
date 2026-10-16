@@ -288,12 +288,12 @@ function startAdvice(result, o, halfStart, plan) {
     if (firstPass?.sowing?.length) {
       lines.push(
         `На цьому полі на першому проході сіє ${count(firstPass.sowing.length)} `
-        + `із ${result.rows}: ${firstPass.outside.length} за межею робочої частини.`,
+        + `із ${result.rows}: ${firstPass.outside.length} за межею поля.`,
       )
     }
   } else {
     lines.push(
-      'Починати повним проходом від краю робочої частини, вздовж обсіву — '
+      'Починати повним проходом від краю поля — '
       + 'рамою точно по межі, щоб крайній сошник ліг по краю.',
     )
   }
@@ -357,7 +357,7 @@ function tailOf(result, plan, spacing) {
   )
   advice.push(
     'Другий спосіб — залишити як є: вивісити раму за межу й підняти секції, '
-    + 'що опинилися над обсівом. Так швидше, але край засівається не рівно.',
+    + 'що опинилися за межею поля. Так швидше, але край засівається не рівно.',
   )
   return { penalty: short, advice, fresh, short, closeRows, sow }
 }

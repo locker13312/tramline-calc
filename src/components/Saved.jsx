@@ -14,20 +14,19 @@ const KINDS = {
     empty: 'Збережених полів ще немає.',
     // Що йде в базу з поточного розрахунку
     from: (input) => ({
-      width: input.fieldWidth, length: input.fieldLength, headland: input.headland,
+      width: input.fieldWidth, length: input.fieldLength, headland: 0,
       crop: input.crop, yield_per_ha: input.yieldPerHa, price_per_ton: input.pricePerTon,
       passes: input.passes, damage_pct: input.damagePct,
     }),
     // Що повертається в форму
     into: (row) => ({
       fieldWidth: Number(row.width), fieldLength: Number(row.length),
-      headland: Number(row.headland), crop: row.crop || undefined,
+      crop: row.crop || undefined,
       yieldPerHa: Number(row.yield_per_ha), pricePerTon: Number(row.price_per_ton),
       passes: Number(row.passes), damagePct: Number(row.damage_pct),
     }),
     describe: (row) => `${num(Number(row.width))} × ${num(Number(row.length))} м · ` +
-      `${num((row.width * row.length) / 10000, 1)} га` +
-      (Number(row.headland) > 0 ? ` · обсів ${num(Number(row.headland))} м` : ''),
+      `${num((row.width * row.length) / 10000, 1)} га`,
   },
   machines: {
     title: 'техніка',

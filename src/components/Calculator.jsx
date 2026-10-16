@@ -4,7 +4,6 @@ import { solutions } from '../lib/solutions'
 import { economics } from '../lib/economics'
 import { CROPS, CHASSIS_PRESETS } from '../lib/presets'
 import { defaultMachines } from '../lib/machines'
-import { DRIVE_MODES, driveMode, headlandFor } from '../lib/driving'
 import { num, plural, rangeText } from '../lib/format'
 import NumField from './NumField'
 import Verdict from './Verdict'
@@ -61,19 +60,11 @@ export default function Calculator({
       fieldWidth: input.fieldWidth,
       fieldLength: input.fieldLength,
       rowSpacing: input.rowSpacing,
-      headland: input.headland,
-      serpentine: input.serpentine,
-      drive: input.drive,
-      land: input.land,
+      // Розвертаються за полем, тож обсіву немає, а їдуть завжди човником.
+      serpentine: true,
     }),
-    [result, input.fieldWidth, input.fieldLength, input.rowSpacing, input.headland,
-      input.serpentine, input.drive, input.land],
+    [result, input.fieldWidth, input.fieldLength, input.rowSpacing],
   )
-
-  // Скільки обсіву брати під розворот — цілим числом кроків сівалки.
-  const turnHints = result.ok && result.step > 0
-    ? ['loop', 'free'].map((turn) => headlandFor({ step: result.step, turn })).filter(Boolean)
-    : []
 
   // Способи засіяти це поле наявною технікою. Перебір повний: кілька
   // десятків повних розрахунків, і на великому парку це вже десятки
@@ -83,7 +74,7 @@ export default function Calculator({
   const ways = useMemo(
     () => solutions({ ...lazy, machines: lazy.machines ?? machines }, {
       fieldWidth: lazy.fieldWidth, fieldLength: lazy.fieldLength,
-      headland: lazy.headland, serpentine: lazy.serpentine,
+      serpentine: true,
     }),
     [lazy, machines],
   )
@@ -134,7 +125,7 @@ export default function Calculator({
       <main className="main">
         <div className="headline" ref={headline}>
           {result.ok
-            ? <Verdict result={result} serpentine={!!input.serpentine} />
+            ? <Verdict result={result} serpentine />
             : (
               <div className="verdict is-bad">
                 <div className="verdict-kicker">
@@ -177,63 +168,15 @@ export default function Calculator({
               </label>
             </div>
 
-            <label>
-              Обсів по периметру, м
-              <NumField min="0" step="1" value={input.headland} onValue={onNum('headland')} />
-            </label>
             <p className="note">
-              Смуга для розворотів. Її беруть цілим числом проходів сівалки,
-              інакше остання смуга обсіву ляже не там.
-              {turnHints.length > 0 && ' Під цю сівалку:'}
-              {turnHints.map((h, n) => (
-                <span key={h.turn}>
-                  {n > 0 ? ', ' : ' '}
-                  <button type="button" className="btn btn-sm btn-quiet"
-                    onClick={() => set('headland', h.width)}>
-                    {num(h.width)} м
-                  </button>
-                  {' '}{h.turn === 'loop' ? 'з петлею' : 'без петлі'} ({h.passes}{' '}
-                  {plural(h.passes, 'прохід', 'проходи', 'проходів')})
-                </span>
-              ))}
-              {turnHints.length > 0 && '.'}
-            </p>
-
-            <label className="check">
-              <input type="checkbox" checked={!!input.serpentine}
-                onChange={(e) => set('serpentine', e.target.checked)} />
-              Поле їдуть човником
-            </label>
-            <p className="note">
-              Прохід туди, розворот, прохід назад сусідньою смугою. На зворотному
-              проході сівалка розвернена, і сошник, названий по полю, глушиться з
-              протилежного боку — тобто не той. Смуги від цього не зсуваються:
-              перераховуються номери, які називають у кабіні.
-            </p>
-
-            <label>
-              Порядок заїздів
-              <select value={driveMode(input.drive).key}
-                onChange={(e) => set('drive', e.target.value)}>
-                {DRIVE_MODES.map((m) => <option key={m.key} value={m.key}>{m.label}</option>)}
-              </select>
-            </label>
-            {driveMode(input.drive).key === 'lands' && (
-              <label>
-                Загінка, проходів сівалки
-                <NumField min="2" step="2" value={input.land} onValue={onNum('land')} />
-              </label>
-            )}
-            <p className="note">
-              {driveMode(input.drive).hint}
-              {driveMode(input.drive).key !== 'row'
-                && ' Смуги лягають ті самі, але в списку проходів зʼявиться номер заїзду — '
-                  + 'той, який рахує механізатор, — і напрямок човника береться з нього.'}
+              Трактор розвертається за полем, і поле їдуть човником: прохід туди,
+              розворот, прохід назад сусідньою смугою — і так до кінця. На
+              зворотному проході сівалка розвернена, тож номери сошників у
+              списку проходів уже перераховані так, як їх видно з кабіни.
             </p>
 
             <div className="derived">
               поле {num(((input.fieldWidth || 0) * (input.fieldLength || 0)) / 10000, 1)} га
-              {plan && !plan.tooSmall && !plan.tooBig && ` · робочої ${num(plan.workingHa, 1)} га`}
             </div>
           </div>
           )}
@@ -286,13 +229,6 @@ export default function Calculator({
               <Figure k="Недосіяно" v={`${num(plan.lostHa, 2)} га`}
                 s={`${num(plan.lostPct, 1)} % поля`} />
             </div>
-          )}
-
-          {plan?.tooSmall && (
-            <p className="warn">
-              Обсів {num(plan.headland)} м зʼїдає поле цілком — на робочу частину
-              не лишається місця навіть під один прохід сівалки.
-            </p>
           )}
 
           {plan?.tooBig && (
