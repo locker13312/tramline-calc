@@ -1,6 +1,6 @@
 import { useDeferredValue, useEffect, useMemo, useRef, useState } from 'react'
 import { computeTramlines, fieldPlan, coulterOffsets, AUTO_MARGIN } from '../lib/tramline'
-import { solutions } from '../lib/solutions'
+import { solutions, wayKey } from '../lib/solutions'
 import { economics } from '../lib/economics'
 import { CROPS, CHASSIS_PRESETS } from '../lib/presets'
 import { defaultMachines } from '../lib/machines'
@@ -81,7 +81,7 @@ export default function Calculator({
 
   // Який спосіб стоїть у формі зараз: по ньому підсвічується картка. Ключ той
   // самий, що й у пошуку, тож збіг не випадковий.
-  const activeWay = `${result.ok ? result.baseWidth : 0}-${result.overlapRows || 0}-${input.halfStart ? 'half' : 'full'}`
+  const activeWay = wayKey(result, input.halfStart)
 
   // Поставити спосіб у форму: рівно ті поля, які він міняє.
   const takeWay = (patch) => setInput((st) => ({ ...st, ...patch }))
@@ -487,7 +487,7 @@ function Drill({ input, set, onNum, pickCrop, result }) {
         <div className="maxle-h">нахльост на засіяне</div>
         <label className="check">
           <input type="checkbox" checked={overlap > 0}
-            onChange={(e) => set('overlapRows', e.target.checked ? 2 : 0)} />
+            onChange={(e) => setInput((st) => ({ ...st, drillStep: null, overlapRows: e.target.checked ? 2 : 0 }))} />
           Заходити на вже засіяне
         </label>
         <label className={overlap > 0 ? undefined : 'is-muted'}>
@@ -496,14 +496,25 @@ function Drill({ input, set, onNum, pickCrop, result }) {
             value={overlap > 0 ? overlap : null}
             disabled={!(overlap > 0)}
             placeholder="0 — стик рівно міжряддям"
-            onValue={(v) => set('overlapRows', v)} />
+            onValue={(v) => setInput((st) => ({ ...st, drillStep: null, overlapRows: v }))} />
         </label>
+        {result.exactStep ? (
+          <div className="derived">
+            точний крок {num(result.step, 3)} м = {num(result.baseWidth)} м «{result.baseLabel}» / {num(result.baseWidth / result.step, 0)},
+            {' '}стик {num(result.joint * 100, 1)} см замість {num(result.stripWidth * 100, 1)} см.{' '}
+            {Number(input.drillStep) > 0 && <button type="button" className="mlink"
+              onClick={() => setInput((st) => ({ ...st, drillStep: null }))}>
+              рахувати сошниками
+            </button>}
+          </div>
+        ) : (
         <div className="derived">
           крок сівалки = {num(result.drillWidth)} м
           {overlap > 0
             ? ` − ${num(result.overlapWidth)} м = ${num(result.step)} м`
             : ' (нахльоста немає)'}
         </div>
+        )}
         <p className="note" style={{ margin: '0 0 2px' }}>
           Сівалка переставляється не на свій захват, а на крок, і саме крок
           має вкладатися в захват машини цілим числом разів. Площа від

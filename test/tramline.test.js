@@ -87,6 +87,7 @@ test('припущення — це рівно те, що людина могл�
   const same = computeTramlines({
     ...cereal,
     overlapRows: r.assumed.overlapRows,
+    drillStep: r.assumed.step,
     machines: r.assumed.option.machines.filter((m) => m.fits).map((m) => ({
       id: m.id, label: m.label, width: m.width, base: m.id === r.assumed.baseId,
       axles: [{ trackWidth: cereal.trackWidth, tyreWidth: cereal.tyreWidth }],
@@ -369,21 +370,43 @@ const lead16 = (set) => set.machines[0]
 // ── Штанга 16 м на сівалці 3,6 м ──────────────────────────────────────────
 //
 // Випадок із життя: 24 секції по 15 см дають 3,6 м, а штанга 16 м. 16 не
-// ділиться на 3,6, і 16 м не кратні 15 см узагалі — точного збігу не існує.
-// Програма має не впертись у «не поєднуються», а показати, як цією ж штангою
-// працювати.
+// ділиться на 3,6, і 16 м не кратні 15 см узагалі — нахльостом у цілих
+// сошниках точного збігу не існує. Але крок сівалки задає розмітка, а не
+// рама: 16 / 5 = 3,2 м, і штанга працює всіми 16 м. Господар так і просив —
+// обприскувач без перекриття, підлаштовується сівалка.
 
 const boom16 = { rows: 24, rowSpacing: 0.15, sprayerWidth: 16 }
 
-test('штанга 16 м на сівалці 3,6 м — відповідь є, і з нахльостом', () => {
+test('штанга 16 м на сівалці 3,6 м — штанга працює всіма 16 м', () => {
   const r = computeTramlines({ ...boom16, trackWidth: 2.45, tyreWidth: 0.4, margin: 0.05 })
   assert.equal(r.ok, true)
-  // 16 м не кратні 15 см узагалі, тож без нахльоста тут не обійтися:
-  // найдешевше — 15,75 м робочої ширини й три сошники по засіяному.
-  assert.equal(r.baseWidth, 15.75)
-  assert.equal(r.overlapRows, 3)
-  assert.equal(r.step, 3.15)
+  assert.equal(r.baseWidth, 16, 'перекриття штанги бути не мусить')
+  assert.equal(r.exactStep, true)
+  assert.equal(r.step, 3.2)
+  assert.equal(r.period, 16)
   assert.equal(r.rhythm, 5)
+  // Три закриті сошники дають стик 20 см — найближче до 15 см із можливих
+  // (два закриті дали б 5 см, майже здвоєний рядок).
+  assert.equal(r.overlapRows, 3)
+  assert.equal(r.joint, 0.2)
+})
+
+test('обприскувач 16 м, база 1,8 м, шина 0,45 — колеса в колії, ніде не по рядку', () => {
+  const r = computeTramlines({ rows: 24, rowSpacing: 0.15,
+    machines: [{ id: 's', kind: 'sprayer', label: 'Обприскувач', width: 16,
+      axles: [{ trackWidth: 1.8, tyreWidth: 0.45 }] }] })
+  assert.equal(r.baseWidth, 16)
+  assert.equal(r.period, 16)
+  // Колеса на 8 ± 0,9 м: жоден сошник, що сіє, у смугу шини не потрапив.
+  for (const p of r.passes) {
+    for (let m = 1; m <= 24; m++) {
+      if (p.disabled.includes(m) || p.overlapClosed.includes(m)) continue
+      const x = p.from + r.coulters[m - 1]
+      for (const c of [8 - 0.9, 8 + 0.9]) {
+        assert.ok(Math.abs(x - c) > 0.225, `прохід ${p.n}, сошник ${m} під колесом`)
+      }
+    }
+  }
 })
 
 test('робоча ширина не перевищує наявний захват', () => {
@@ -395,18 +418,22 @@ test('робоча ширина не перевищує наявний захв�
   }
 })
 
-test('перший набір під 16 м — 15,75 м і три сошники в нахльост', () => {
+test('перший набір під 16 м — точний крок 3,2 м, штанга вся', () => {
   // Раніше тут першим стояло 14,4 м: заглушені секції важили стільки ж,
   // скільки перекриття штанги. Але це різні гроші. Перекриття — подвійна
   // доза на смузі, і то на кожній обробці за сезон; нахльост — зайвий
   // прохід сівалки раз на поле, без утрати площі. Тому вага половинна, і
-  // перший варіант тепер той, у якого перекриття 25 см, а не 1,6 м.
+  // перший варіант став той, у якого перекриття 25 см, а не 1,6 м. А тепер
+  // і 25 см немає: крок 3,2 м ділить 16 м рівно.
   const [best] = sets16()
+  assert.equal(best.exact, true)
   assert.equal(best.off, 3)
-  assert.equal(best.step, 3.15)
-  assert.equal(lead16(best).width, 15.75)
+  assert.equal(best.step, 3.2)
+  assert.equal(lead16(best).width, 16)
   assert.equal(lead16(best).k, 5)
-  assert.ok(lead16(best).overlap < 0.3)
+  assert.equal(lead16(best).overlap, 0)
+  // Звичний нахльост 15,75 м нікуди не дівся — він у списку далі.
+  assert.ok(sets16(8).some((o) => !o.exact && lead16(o).width === 15.75))
 })
 
 test('набір без жодного нахльоста теж лишається в списку', () => {
@@ -438,12 +465,13 @@ test('кожен запропонований набір справді дає �
     const o = lead16(set)
     const r = computeTramlines({
       rows: 24, rowSpacing: 0.15, overlapRows: set.off, sprayerWidth: o.width,
+      drillStep: set.exact ? set.step : null,
       trackWidth: 2.45, tyreWidth: 0.4, margin: 0.05,
     })
     assert.equal(r.ok, true, `${o.width} м не дає ритму`)
     assert.equal(r.assumed, null, `${o.width} м: мусило скластися без припущень`)
     assert.equal(r.rhythm, o.k)
-    assert.equal(r.step, set.step)
+    assert.equal(r.step, Math.round(set.step * 1000) / 1000)
     assert.ok(r.disabledPerCycle > 0, `${o.width} м: нема чого глушити`)
   }
 })

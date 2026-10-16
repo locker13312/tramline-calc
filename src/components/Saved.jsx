@@ -50,6 +50,7 @@ const KINDS = {
           coulters: input.coulters ?? null,
           drillWidth: input.drillWidth ?? null,
           overlapRows: input.overlapRows ?? null,
+          drillStep: input.drillStep ?? null,
           // Чиє число запасу — системи чи господаря. Окремої колонки під
           // прапорець немає й не треба: без нього «запас 0,10» від системи
           // не відрізнити від такого самого, заданого вручну.
@@ -73,6 +74,9 @@ const KINDS = {
       if (park.coulters) extra.coulters = park.coulters
       if (park.drillWidth) extra.drillWidth = park.drillWidth
       if (park.overlapRows != null) extra.overlapRows = Number(park.overlapRows) || 0
+      // Точний крок записується завжди, і порожнім теж: інакше крок від
+      // попереднього розрахунку пережив би завантаження чужого.
+      extra.drillStep = Number(park.drillStep) > 0 ? Number(park.drillStep) : null
       if (park.marginManual != null) extra.marginManual = !!park.marginManual
       return { ...base, ...extra }
     },

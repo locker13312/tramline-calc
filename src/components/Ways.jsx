@@ -34,7 +34,9 @@ export default function Ways({ list, onTake, active, compact = false }) {
                 <span className="way-n">спосіб {w.n}</span>
                 <span className="way-key">
                   {num(w.baseWidth)} м × {w.rhythm}
-                  {w.overlapRows > 0 && ` · нахльост ${w.overlapRows}`}
+                  {w.exactStep
+                    ? ` · точний крок ${num(w.step, 3)} м`
+                    : w.overlapRows > 0 && ` · нахльост ${w.overlapRows}`}
                   {w.halfStart && ' · половинний перший'}
                 </span>
                 {/* Скільком машинам з тих, що хотіли в колії, вона
@@ -61,8 +63,10 @@ export default function Ways({ list, onTake, active, compact = false }) {
                   s={w.lostHa != null ? `${num(w.lostHa, 2)} га` : null} />
                 <Fig k="перекриття" v={`${num(w.boomOverlap)} м`}
                   s={`${num(w.boomOverlapPct, 1)} % обробки`} />
-                <Fig k="крок сівалки" v={`${num(w.step)} м`}
-                  s={w.overlapRows > 0 ? `рама ${num(w.drillWidth)} м` : 'рама як є'} />
+                <Fig k="крок сівалки" v={`${num(w.step, 3)} м`}
+                  s={w.exactStep
+                    ? `стик ${num(w.joint * 100, 1)} см`
+                    : w.overlapRows > 0 ? `рама ${num(w.drillWidth)} м` : 'рама як є'} />
                 <Fig k="проходів" v={w.passes != null ? String(w.passes) : '—'}
                   s={w.tramlines != null ? `${w.tramlines} ${plural(w.tramlines, 'колія', 'колії', 'колій')}` : null} />
               </div>

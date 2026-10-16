@@ -34,6 +34,70 @@ const spacingOf = (v) => {
 // Чого коштує заглушена крайня секція проти метра перекриття штанги.
 const OFF_WEIGHT = 0.5
 
+// Перекриття головної машини — не «трохи дорожче», а те, чого господар не
+// хоче зовсім: обприскувач, який щоразу ллє двічі по смузі, — це хімія на
+// вітер на кожній обробці сезону. Тому спосіб, де головна машина працює всім
+// своїм захватом, іде попереду будь-якого з перекриттям.
+const LEAD_OVERLAP = 10
+// Стик, ширший чи вужчий за міжряддя на долю міжряддя, — разова нерівність
+// на прохід сівалки, а не втрата площі.
+const JOINT_WEIGHT = 1
+
+// ── Точний крок ───────────────────────────────────────────────────────────
+//
+// Звичний нахльост ціле число сошників, і крок через нього — рама мінус
+// стільки-то міжрядь. Захват машини в такий крок вкладається націло рідко:
+// штанга 16 м при міжрядді 15 см — це 106⅔ міжряддя, і жоден нахльост у
+// сошниках не дасть кроку, що ділить 16 м. Тоді доводилось різати штангу.
+//
+// Але крок сівалки задає не рама, а розмітка: маркер або ширина в терміналі
+// підрулювання, і поставити туди 3,2 м так само легко, як 3,15. Тоді крок
+// рівно ділить захват машини, а різниця йде в стик між проходами сівалки:
+// крайні рядки сусідніх проходів лягають не через 15 см, а, скажімо, через
+// 20. Закритих сошників стільки, щоб стик був найближчим до міжряддя.
+//
+// Середнє міжряддя розкладки — те, яким має бути стик.
+const meanGap = (offsets) => (offsets.length > 1
+  ? (offsets[offsets.length - 1] - offsets[0]) / (offsets.length - 1)
+  : 0)
+
+// Стик між проходами при кроці D і `off` закритих сошниках: від останнього
+// сошника проходу до першого, що сіє, на наступному.
+const jointOf = (offsets, D, off) => D + offsets[off] - offsets[offsets.length - 1]
+
+// Скільки сошників закрити під крок D, щоб стик був найближчим до міжряддя.
+// За однакової відстані — ширший стик: здвоєний рядок гірший за пропуск.
+export function closedForStep(offsets, D) {
+  const rows = offsets.length
+  const want = meanGap(offsets)
+  let best = null
+  for (let off = 0; off <= rows - 2; off++) {
+    const joint = jointOf(offsets, D, off)
+    if (!(joint > EPS)) continue
+    const dev = Math.abs(joint - want)
+    if (!best || dev < best.dev - 1e-9 || (Math.abs(dev - best.dev) <= 1e-9 && joint > best.joint)) {
+      best = { off, joint, dev }
+    }
+  }
+  return best
+}
+
+// Крок із форми приходить округленим до міліметра: 24 / 7 = 3,428571…, а в
+// полі стоїть 3,429. Сім таких кроків — уже не 24 м, і ритм не склався б.
+// Тому крок, що до міліметра ділить захват якоїсь машини, береться точним.
+function snapStep(raw, machines) {
+  const v = Number(raw)
+  if (!(Number.isFinite(v) && v > 0)) return 0
+  for (const m of machines) {
+    for (const w of [m.fullWidth, m.width]) {
+      if (!(w > 0)) continue
+      const k = Math.round(w / v)
+      if (k >= 1 && Math.abs(w / k - v) < 0.0006) return w / k
+    }
+  }
+  return v
+}
+
 // ── Робочі ширини на весь парк ───────────────────────────────────────────
 //
 // Звузити одну машину мало. Крок колій спільний, і щойно він змінився,
@@ -73,6 +137,52 @@ export function workingSets({ geo, machines, limit = 8 }) {
   // тому однаково працює і для довільної розкладки — а колись саме на ній
   // програма й відмовлялася рахувати.
   const out = []
+
+  // Робоча ширина кожної машини під крок.
+  const perFor = (step) => active.map((m) => {
+    const k = Math.floor((m.full + EPS) / step)
+    const width = mm(k * step)
+    const overlap = mm(m.full - width)
+    return {
+      id: m.id, label: m.label, was: mm(m.full), width, k, overlap,
+      overlapPct: mm((overlap / m.full) * 100),
+      // Перекриття більше за чверть захвату — це вже не робота, а
+      // катання: машина возить по сусідньому проходу чверть себе.
+      fits: k >= 1 && overlap <= m.full / 4 + EPS,
+      // А чи є в неї взагалі робоча ширина під цей крок. Це інша межа:
+      // перекриття в півмашини — поганий варіант, а машина, вужча за крок,
+      // не варіант зовсім.
+      works: k >= 1,
+    }
+  })
+
+  // Набір під крок і його ціна.
+  const setFor = (off, step, overlapWidth, offPct, per, extra = {}) => {
+    const leadSet = per.find((x) => x.id === lead.id)
+    if (!leadSet?.works) return null
+    const good = per.filter((x) => x.fits)
+    const overlapPct = good.length
+      ? mm(good.reduce((a, x) => a + x.overlapPct, 0) / good.length)
+      : leadSet.overlapPct
+    return {
+      off, rows: rows - off, step, overlapWidth, offPct,
+      exact: false, joint: null,
+      machines: per,
+      outsiders: per.filter((x) => !x.fits),
+      leadFits: leadSet.fits,
+      overlapPct,
+      // Ціна набору: перекриття в середньому по парку, окремо й дорожче —
+      // перекриття головної машини, зайвий прохід сівалки вполовину
+      // дешевший, і найдорожче — машина, що з колії випала. Остання не
+      // «гірший варіант», а інша задача: колію нарізали, а машина по ній не
+      // їздить.
+      cost: mm(overlapPct + (leadSet.overlap > 0.0005 ? LEAD_OVERLAP + leadSet.overlapPct : 0)
+        + offPct * OFF_WEIGHT + (extra.jointCost ?? 0)
+        + per.filter((x) => !x.fits).length * 20),
+      ...extra,
+    }
+  }
+
   for (let off = 0; off <= rows - 2; off++) {
     const o = overlapOf({ overlapRows: off }, geo)
     const step = o.step
@@ -80,40 +190,29 @@ export function workingSets({ geo, machines, limit = 8 }) {
     // Скільком проходів сівалки більше через нахльост: саме це за нього й
     // платять — зайвою соляркою й часом, раз на поле.
     const offPct = mm((off / (rows - off)) * 100)
-    const per = active.map((m) => {
-      const k = Math.floor((m.full + EPS) / step)
-      const width = mm(k * step)
-      const overlap = mm(m.full - width)
-      return {
-        id: m.id, label: m.label, was: mm(m.full), width, k, overlap,
-        overlapPct: mm((overlap / m.full) * 100),
-        // Перекриття більше за чверть захвату — це вже не робота, а
-        // катання: машина возить по сусідньому проходу чверть себе.
-        fits: k >= 1 && overlap <= m.full / 4 + EPS,
-        // А чи є в неї взагалі робоча ширина під цей крок. Це інша межа:
-        // перекриття в півмашини — поганий варіант, а машина, вужча за крок,
-        // не варіант зовсім.
-        works: k >= 1,
-      }
+    const per = perFor(step)
+    const set = setFor(off, step, o.width, offPct, per)
+    if (set) out.push(set)
+  }
+
+  // Точні кроки: захват головної машини, поділений на ціле число проходів
+  // сівалки. Головна машина в них працює всім захватом, без перекриття, а
+  // ціна — стик між проходами сівалки, трохи ширший чи вужчий за міжряддя.
+  const want = meanGap(offsets)
+  for (let k = 1; k <= LIMITS.rhythm; k++) {
+    const step = lead.full / k
+    if (step > frame + EPS) continue
+    const c = closedForStep(offsets, step)
+    if (!c) break
+    // Крок, який дає й звичний нахльост, — уже в списку.
+    if (Math.abs(c.joint - want) < 1e-6) continue
+    const offPct = mm((c.off / (rows - c.off)) * 100)
+    const set = setFor(c.off, step, mm(frame - step), offPct, perFor(step), {
+      exact: true,
+      joint: mm(c.joint),
+      jointCost: (c.dev / want) * JOINT_WEIGHT,
     })
-    const leadSet = per.find((x) => x.id === lead.id)
-    if (!leadSet?.works) continue
-    const good = per.filter((x) => x.fits)
-    const overlapPct = good.length
-      ? mm(good.reduce((a, x) => a + x.overlapPct, 0) / good.length)
-      : leadSet.overlapPct
-    out.push({
-      off, rows: rows - off, step, overlapWidth: o.width, offPct,
-      machines: per,
-      outsiders: per.filter((x) => !x.fits),
-      leadFits: leadSet.fits,
-      overlapPct,
-      // Ціна набору: перекриття в середньому по парку, зайвий прохід
-      // сівалки — вполовину дешевший, і окремо найдорожче — машина, що з
-      // колії випала. Остання не «гірший варіант», а інша задача: колію
-      // нарізали, а машина по ній не їздить.
-      cost: mm(overlapPct + offPct * OFF_WEIGHT + per.filter((x) => !x.fits).length * 20),
-    })
+    if (set) out.push(set)
   }
 
   // Набори, у яких головна машина працює по-людськи, і окремо — ті, де вона
@@ -212,16 +311,31 @@ function computeOnce(input, assume = null) {
   // завеликий нахльост стосується її числа, і воно однакове що з
   // припущенням, що без нього.
   const asked = overlapOf(input, geo)
-  const D = over.step > 0 ? over.step : W
-  if (over.rows > 0 && !(over.step > 0)) {
+
+  // Точний крок, якщо він заданий: тоді нахльост у сошниках з нього
+  // виводиться, а не задається (див. «Точний крок» угорі).
+  const exactRaw = snapStep(assume?.step ?? input.drillStep, normaliseMachines(input))
+  const exact = exactRaw > 0 && exactRaw <= W + EPS ? closedForStep(offsets, exactRaw) : null
+  if (exactRaw > 0 && !exact) {
+    warnings.push(
+      `Крок сівалки ${mm(exactRaw)} м на цій сівалці не виходить — ` +
+      `він більший за раму ${mm(W)} м або лишає менше двох сошників. Рахую без нього.`,
+    )
+  }
+
+  const D = exact ? exactRaw : over.step > 0 ? over.step : W
+  if (!exact && over.rows > 0 && !(over.step > 0)) {
     warnings.push(
       `Нахльост ${over.rows} ` +
       'сошників не лишає сівалці кроку — рахую без нахльоста. Перевірте захват ' +
       'сівалки: при своїй розкладці він задається окремо.',
     )
   }
-  const overRows = over.step > 0 ? over.rows : 0
-  const overWidth = over.step > 0 ? over.width : 0
+  const overRows = exact ? exact.off : over.step > 0 ? over.rows : 0
+  const overWidth = exact ? Math.max(0, W - D) : over.step > 0 ? over.width : 0
+  // Стик між проходами: при звичному нахльості він дорівнює міжряддю, при
+  // точному кроці — тому, що вийшло.
+  const joint = rows >= 2 ? jointOf(offsets, D, Math.min(overRows, rows - 2)) : 0
   if (asked.clamped) {
     warnings.push(
       `Нахльост ${asked.clamped} сошників — це більше, ніж сівалка може віддати. ` +
@@ -906,6 +1020,11 @@ function computeOnce(input, assume = null) {
     // Крок сівалки й нахльост: з них видно, чому відношення захватів саме
     // таке, і ними ж міряються проходи по полю.
     step: mm(D),
+    // Крок без округлення: точний крок 24 / 7 на полі в двісті проходів
+    // за міліметр на прохід розійшовся б із колією на долоню.
+    stepRaw: D,
+    exactStep: !!exact,
+    joint: mm(joint),
     overlapRows: overRows,
     overlapWidth: mm(overWidth),
     overlapClosed: overClosed,
@@ -1009,6 +1128,8 @@ export function computeTramlines(input) {
       baseLabel: lead.label,
       widths: new Map(o.machines.filter((m) => m.fits).map((m) => [m.id, m.width])),
       overlapRows: o.off,
+      // Точний крок несе себе сам: нахльост у сошниках із нього виводиться.
+      step: o.exact ? o.step : undefined,
       wasOverlapRows: already,
       option: o,
     }
@@ -1069,7 +1190,15 @@ function assumeLine(assume, result) {
       + ' або приберіть її з колії свідомо.',
     )
   }
-  if (o.off > 0) {
+  if (o.exact) {
+    parts.push(
+      `Сівалку ставлять на крок ${result.step} м — рівно ${mm(result.baseWidth / result.step)}-та частина`
+      + ` захвату «${assume.baseLabel}», тож він працює всім захватом, без перекриття.`
+      + ` Крок задають маркером або шириною в терміналі підрулювання.`
+      + (o.off > 0 ? ` Крайніх сошників закрито ${o.off}, і стик між проходами виходить` : ' Стик між проходами виходить')
+      + ` ${cm(result.joint)} см замість ${cm(result.stripWidth)} см: рядків на стику не бракує, лише крайні лягають трохи інакше.`,
+    )
+  } else if (o.off > 0) {
     parts.push(
       `Сівалка йде з нахльостом ${assume.overlapRows} ${coulterWord(assume.overlapRows)}:`
       + ` крок ${result.step} м замість ${result.drillWidth} м. Площа від цього не`
@@ -1092,6 +1221,7 @@ function assumeLine(assume, result) {
   return parts.join(' ')
 }
 
+const cm = (v) => String(Math.round(v * 1000) / 10).replace('.', ',')
 const num1 = (v) => String(Math.round(v * 10) / 10).replace('.', ',')
 const coulterWord = (n) => (n % 10 === 1 && n % 100 !== 11 ? 'сошника' : 'сошників')
 
@@ -1136,11 +1266,13 @@ export function fieldPlan(
   const offsets = result.coulters
   // Крок сівалки — не те саме, що її захват: із нахльостом вона
   // переставляється на менше, і проходів на поле виходить більше.
-  const D = result.step > 0 ? result.step : W
+  const D = result.stepRaw > 0 ? result.stepRaw : result.step > 0 ? result.step : W
   // Без кроку сівалки проходів не порахувати — плану немає, а не нескінченність.
   if (!(D > 0) || !Array.isArray(offsets)) return null
   const over = result.overlapRows || 0
-  const overWidth = result.overlapWidth || 0
+  // Від кроку, а не від округленого числа: при точному кроці різниця в
+  // міліметр на прохід за поле набігає в десятки сантиметрів.
+  const overWidth = Math.max(0, W - D)
 
   // Обсів по периметру сіють окремо й по ньому ж розвертаються, тож колія в
   // ньому не потрібна — і не влазить: комбайн і обприскувач заходять у загінку

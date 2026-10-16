@@ -27,7 +27,7 @@ test('на захваті, що не ділиться, способи все о�
 
 test('жоден спосіб не міняє самої техніки — тільки те, що крутять у полі', () => {
   for (const w of solutions(boom16, strip)) {
-    assert.deepEqual(Object.keys(w.patch).sort(), ['halfStart', 'machines', 'overlapRows'])
+    assert.deepEqual(Object.keys(w.patch).sort(), ['drillStep', 'halfStart', 'machines', 'overlapRows'])
     assert.equal(w.patch.machines.length, boom16.machines.length)
     const m = w.patch.machines[0]
     assert.deepEqual(m.axles, boom16.machines[0].axles, 'колісна база чужа')
@@ -58,20 +58,22 @@ test('способи впорядковані від найдешевшого й
   for (const w of list) {
     assert.ok(w.score >= prev, 'список не впорядкований за ціною')
     prev = w.score
-    const key = `${w.baseWidth}:${w.overlapRows}`
+    const key = `${w.baseWidth}:${w.overlapRows}:${w.step}`
     assert.ok(!keys.has(key), `спосіб ${key} двічі`)
     keys.add(key)
   }
 })
 
-test('перший спосіб під 16 м — 15,75 м і три сошники в нахльост', () => {
+test('перший спосіб під 16 м — штанга вся, сівалка на точному кроці', () => {
   // Найдешевше тут не «їдь на 14,4 м» (10 % подвійної дози на кожній
-  // обробці), а нахльост: 25 см перекриття і зайвий прохід сівалки раз на
-  // поле, без утрати площі.
+  // обробці) і не 15,75 м (25 см подвійної дози), а крок сівалки 3,2 м:
+  // штанга без перекриття, стик між проходами 20 см.
   const [best] = solutions(boom16, strip)
-  assert.equal(best.baseWidth, 15.75)
+  assert.equal(best.baseWidth, 16)
+  assert.equal(best.boomOverlap, 0)
+  assert.equal(best.exactStep, true)
   assert.equal(best.overlapRows, 3)
-  assert.equal(best.step, 3.15)
+  assert.equal(best.step, 3.2)
   assert.equal(best.rhythm, 5)
 })
 
@@ -144,7 +146,7 @@ test('поставлений спосіб не відкушує від маши�
   // натискання штанга 16 м перетворювалася на 13 — і жодного попередження.
   const first = solutions(boom16, strip)
   const after = { ...boom16, ...first[0].patch }
-  assert.equal(after.machines[0].width, 15.75)
+  assert.equal(after.machines[0].width, 16)
   assert.equal(after.machines[0].fullWidth, 16, 'розмах мусить лишитися')
 
   const second = solutions(after, strip)
@@ -174,5 +176,5 @@ test('число, вписане у форму руками, — це розма
     machines: [{ ...boom16.machines[0], width: 16, fullWidth: 16 }],
   }, strip)
   assert.equal(list[0].baseFull, 16)
-  assert.equal(list[0].baseWidth, 15.75)
+  assert.equal(list[0].baseWidth, 16)
 })

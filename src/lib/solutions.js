@@ -64,7 +64,12 @@ const WEIGHT = {
   // Машина, яка в цей крок не вкладається, по колії не поїде — поїде
   // посівом. Це не «трохи гірше», це не те, про що просили.
   outsider: 20,
+  // Головна машина з перекриттям — це хімія двічі по смузі на кожній
+  // обробці. Спосіб, де вона працює всім захватом, іде попереду.
+  leadOverlap: 10,
 }
+
+const leadOverlap = (o, lead) => o.machines.find((m) => m.id === lead.id)?.overlap ?? 0
 
 // Поле, на якому ще нічого не задано, — не причина не шукати способів:
 // геометрія проходу від розміру поля не залежить. Тоді просто немає розділу
@@ -80,6 +85,13 @@ const hasField = (f) => Number(f?.fieldWidth) > 0 && Number(f?.fieldLength) > 0
  * Кожен спосіб несе `patch` — рівно ті зміни у формі, якими його ввімкнути.
  * Нічого іншого спосіб не міняє: ні техніки, ні міжряддя, ні культури.
  */
+// Ключ способу: по ньому картка, що стоїть у формі, підсвічується. Крок у
+// ключі тому, що точний крок і звичний нахльост можуть закривати однаково
+// сошників, а способи це різні.
+export const wayKey = (result, halfStart) => (result?.ok
+  ? `${result.baseWidth}-${result.overlapRows || 0}-${result.step}-${halfStart ? 'half' : 'full'}`
+  : '')
+
 export function solutions(input, field = {}, limit = 5) {
   const geo = drillGeometry(input)
   const rows = geo.rows
@@ -130,6 +142,9 @@ export function solutions(input, field = {}, limit = 5) {
       // колією, і спосіб про це скаже прямо.
       const patch = {
         overlapRows: o.off,
+        // Точний крок або є в способі, або його немає зовсім: інакше крок,
+        // що лишився в формі від попереднього способу, перебивав би нахльост.
+        drillStep: o.exact ? o.step : null,
         halfStart,
         machines: machines.map((m) => {
           const w = o.machines.find((x) => x.id === m.id)
@@ -181,7 +196,7 @@ export function solutions(input, field = {}, limit = 5) {
   // той, що без половинного проходу, бо його ще й робити не треба.
   const seen = new Map()
   for (const way of shortlist) {
-    const key = `${way.baseWidth}:${way.overlapRows}`
+    const key = `${way.baseWidth}:${way.overlapRows}:${way.step}`
     const prev = seen.get(key)
     if (!prev || way.score < prev.score) seen.set(key, way)
   }
@@ -195,10 +210,12 @@ export function solutions(input, field = {}, limit = 5) {
 // Груба ціна поєднання — усе, що видно без розкладки поля. Недосіяна площа
 // тут цикловa: по полю вона виходить майже та сама, бо візерунок циклу й
 // повторюється по всій ширині.
-function rough({ o, result, halfStart }) {
+function rough({ o, result, halfStart, lead }) {
   return result.lossPct * WEIGHT.lost
     + o.overlapPct * WEIGHT.boom
     + o.offPct * WEIGHT.extraPass
+    + (o.jointCost ?? 0)
+    + (leadOverlap(o, lead) > 0.0005 ? WEIGHT.leadOverlap : 0)
     + (result.symmetric ? 0 : WEIGHT.split)
     + (result.cycle > 8 ? WEIGHT.longRhythm : 0)
     + outsidersOf(o, result).length * WEIGHT.outsider
@@ -225,6 +242,8 @@ function describe({ o, halfStart, patch, result, plan, lead, spacing, other = nu
     lostPct * WEIGHT.lost
     + o.overlapPct * WEIGHT.boom
     + o.offPct * WEIGHT.extraPass
+    + (o.jointCost ?? 0)
+    + (leadOverlap(o, lead) > 0.0005 ? WEIGHT.leadOverlap : 0)
     + (split ? WEIGHT.split : 0)
     + tail.penalty * WEIGHT.tail
     + (result.cycle > 8 ? WEIGHT.longRhythm : 0)
@@ -232,7 +251,7 @@ function describe({ o, halfStart, patch, result, plan, lead, spacing, other = nu
   )
 
   return {
-    id: `${result.baseWidth}-${o.off}-${halfStart ? 'half' : 'full'}`,
+    id: wayKey(result, halfStart),
     patch,
     score,
     // Що саме крутимо, числами.
@@ -250,6 +269,8 @@ function describe({ o, halfStart, patch, result, plan, lead, spacing, other = nu
     outsiders: outsiders.map((m) => ({ id: m.id, label: m.label, width: m.width })),
     overlapRows: o.off,
     overlapWidth: result.overlapWidth,
+    exactStep: !!o.exact,
+    joint: result.joint,
     halfStart,
     step,
     drillWidth: result.drillWidth,
@@ -388,7 +409,14 @@ function why({ o, halfStart, result, plan, lead, other }) {
     )
   }
 
-  if (o.off > 0) {
+  if (o.exact) {
+    lines.push(
+      `Сівалка на точному кроці ${num(result.step, 3)} м: «${lead.label}» працює всім `
+      + `захватом, без перекриття. Крок ставлять маркером або шириною в терміналі; `
+      + `закрито ${count(o.off)}, стик між проходами ${num(result.joint * 100, 1)} см `
+      + `замість ${num(result.stripWidth * 100, 1)} см.`,
+    )
+  } else if (o.off > 0) {
     lines.push(
       `Сівалка з нахльостом ${count(o.off)}: крок ${num(result.step)} м замість `
       + `${num(result.drillWidth)} м. Площа не губиться — рядки під закритими `
