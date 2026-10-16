@@ -227,3 +227,26 @@ test('поле на один прохід і вужче має план, а не
   const eaten = fieldPlan(r, { fieldWidth: 40, fieldLength: 100, headland: 20, rowSpacing: 0.15 })
   assert.equal(eaten.tooSmall, true, 'обсів на все поле — тоді відмова')
 })
+
+// Спосіб із половинним першим проходом писав «недосіву 4,5 % замість 5,2 %»,
+// хоча половинний прохід нічого не міняв: 4,5 — недосів від поля, 5,2 — від
+// циклу, і порівнювалися саме вони. Знайдено на проді: сівалка 24 × 15 см,
+// обприскувач 24 м, колісна база 3 м, шина 0,5 м.
+test('виграш від половинного проходу міряється одним і тим самим числом', async () => {
+  const { solutions } = await import('../src/lib/solutions.js')
+  const input = {
+    ...grain, margin: 0.1,
+    machines: [sprayer({ width: 24, base: true, axles: [{ trackWidth: 3, tyreWidth: 0.5 }] })],
+  }
+  const field = { fieldWidth: 600, fieldLength: 800, headland: 24 }
+  for (const way of solutions(input, field)) {
+    const claim = way.why.find((l) => l.includes('недосіву'))
+    if (!claim) continue
+    const [now, was] = [...claim.matchAll(/(\d+(?:,\d+)?) %/g)].map((m) => Number(m[1].replace(',', '.')))
+    const plain = fieldPlan(computeTramlines({ ...input, ...way.patch, halfStart: false }),
+      { ...field, rowSpacing: 0.15 })
+    assert.ok(Math.abs(was - plain.lostPct) < 0.06,
+      `«замість ${was} %», а без половинного проходу недосів ${plain.lostPct} %`)
+    assert.ok(now < was, claim)
+  }
+})

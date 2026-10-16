@@ -163,10 +163,15 @@ export function solutions(input, field = {}, limit = 5) {
     .sort((a, b) => rough(a) - rough(b))
     .slice(0, limit + 5)
     .map((cand) => {
-      const plan = hasField(field)
-        ? fieldPlan(cand.result, { ...field, rowSpacing: input.rowSpacing })
-        : null
-      return plan && (plan.tooSmall || plan.tooBig) ? null : { ...cand, plan }
+      const layout = (r) => (hasField(field)
+        ? fieldPlan(r, { ...field, rowSpacing: input.rowSpacing })
+        : null)
+      const plan = layout(cand.result)
+      // Пару з іншим першим проходом теж розкладаємо: інакше порівняння
+      // «з половинним і без» брало б недосів від поля в одного й недосів від
+      // циклу в другого — і показувало виграш, якого немає.
+      const other = cand.other ? { ...cand.other, plan: layout(cand.other.result) } : null
+      return plan && (plan.tooSmall || plan.tooBig) ? null : { ...cand, plan, other }
     })
     .filter(Boolean)
     .map((cand) => describe(cand))
@@ -405,8 +410,10 @@ function why({ o, halfStart, result, plan, lead, other }) {
   // Про половинний прохід — тільки те, що видно з порівняння з тим самим
   // способом без нього. «Увімкніть, бо так краще» тут не відповідь.
   if (halfStart && other) {
-    const was = other.plan ? other.plan.lostPct : other.result.lossPct
-    const now = plan ? plan.lostPct : result.lossPct
+    // Обидва числа з одного джерела: обидва від поля або обидва від циклу.
+    const byField = !!(plan && other.plan)
+    const was = byField ? other.plan.lostPct : other.result.lossPct
+    const now = byField ? plan.lostPct : result.lossPct
     const hitWas = other.result.passes.filter((p) => p.disabled.length).length
     if (hitWas > hit) {
       lines.push(
