@@ -250,3 +250,27 @@ test('виграш від половинного проходу міряєтьс
     assert.ok(now < was, claim)
   }
 })
+
+// На схемі «прохід зблизька» підписи 22–24 і 3 друкувалися один на одному:
+// колесо стало на стик проходів, і обидві групи сошників — в одній точці.
+// Знайдено на проді на ширині телефона.
+test('підписи сошників над схемою не налазять один на одного', async () => {
+  const { numberLabels, runs } = await import('../src/lib/format.js')
+  const r = computeTramlines({
+    ...grain, margin: 0.1,
+    machines: [sprayer({ width: 24, base: true, axles: [{ trackWidth: 3, tyreWidth: 0.5 }] })],
+  })
+  const labels = numberLabels(r, r.coulters, r.period)
+  assert.ok(labels.some((l) => l.text === '22–24 · 3'), JSON.stringify(labels.map((l) => l.text)))
+  // Жодні два підписи не ближчі, ніж їхні півширини разом.
+  const scale = 940 / r.period
+  for (let i = 1; i < labels.length; i++) {
+    const gap = (labels[i].at - labels[i - 1].at) * scale
+    const need = (labels[i].text.length + labels[i - 1].text.length) * 7.5 / 2
+    assert.ok(gap >= need, `«${labels[i - 1].text}» і «${labels[i].text}» налазять`)
+  }
+  // Жоден номер не губиться при злитті: груп названо стільки, скільки їх є.
+  const named = labels.flatMap((l) => l.text.split(' · '))
+  const groups = r.passes.flatMap((p) => runs(p.disabled))
+  assert.equal(named.length, groups.length)
+})

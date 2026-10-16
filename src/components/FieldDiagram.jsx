@@ -1,4 +1,4 @@
-import { runs, num } from '../lib/format'
+import { num, numberLabels } from '../lib/format'
 
 // ── Прохід зблизька ───────────────────────────────────────────────────────
 //
@@ -116,17 +116,9 @@ export default function FieldDiagram({ result }) {
 
         {/* Один підпис на суцільну групу вимкнених сошників. Поштучні номери
             при міжрядді 15 см налазять один на одного. */}
-        {result.passes.flatMap((p) =>
-          runs(p.disabled).map(([lo, hi]) => {
-            const mid = p.from + (offsets[lo - 1] + offsets[hi - 1]) / 2
-            if (mid < -0.01 || mid > period + 0.01) return null
-            return (
-              <text key={`n-${p.n}-${lo}`} x={x(mid)} y={bandTop - 16} className="d-num">
-                {lo === hi ? lo : `${lo}–${hi}`}
-              </text>
-            )
-          }),
-        )}
+        {numberLabels(result, offsets, period).map((l) => (
+          <text key={l.key} x={x(l.at)} y={bandTop - 16} className="d-num">{l.text}</text>
+        ))}
 
         {/* Лінійка по межах проходів сівалки */}
         <line x1={x(0)} y1={VB_H - 28} x2={x(period)} y2={VB_H - 28} className="d-ruler" />

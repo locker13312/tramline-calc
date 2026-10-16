@@ -168,7 +168,7 @@ npm start               # http://localhost:3002 — API і сторінка ра
 ```bash
 npm run dev             # Vite на 5180, коли працюєш над фронтендом
 npm run server          # API окремо
-npm test                # 147 тестів на розрахунок, вбудований ранер Node
+npm test                # 148 тестів на розрахунок, вбудований ранер Node
 npm run test:render     # чи малюється кожен екран без збоїв і NaN
 npm run test:contrast   # контраст тексту в обох темах, по WCAG
 npm run test:css        # чи кожен клас у розмітці має стиль
