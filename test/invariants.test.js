@@ -132,13 +132,20 @@ test('машина не може зменшити кількість вимкн�
     const input = sample(seed)
     const live = input.machines.filter((m) => m.active)
     if (live.length < 2) continue
-    // Закріплюємо найвужчу базовою й знімаємо з програми свободу вибору.
-    const lead = live.slice().sort((a, b) => a.width - b.width)[0]
-    const pin = (machines) => machines.map((m) => ({
+    // Закріплюємо базовою найвужчу з тих, під які колія складається без
+    // припущень, і знімаємо з програми свободу вибору. Закріплена машина, що
+    // не ділиться, тягне за собою припущення — а з ним порівнювати нема що.
+    const pinTo = (lead) => (machines) => machines.map((m) => ({
       ...m, base: m.id === lead.id, phase: m.id === lead.id ? 0 : (m.width % 1) / 2,
     }))
-    const full = computeTramlines({ ...input, machines: pin(input.machines) })
-    if (!full.ok) continue
+    let lead = null
+    let pin = null
+    let full = null
+    for (const c of live.slice().sort((a, b) => a.width - b.width)) {
+      const r = computeTramlines({ ...input, machines: pinTo(c)(input.machines) })
+      if (r.ok && !r.assumed) { lead = c; pin = pinTo(c); full = r; break }
+    }
+    if (!full) continue
     for (const drop of live) {
       if (drop.id === lead.id) continue
       const less = computeTramlines({

@@ -192,3 +192,38 @@ test('обрізаний нахльост не губиться в припущ�
   assert.ok(r.warnings.some((w) => w.includes('більше, ніж сівалка може віддати')),
     `мусить бути попередження: ${JSON.stringify(r.warnings)}`)
 })
+
+// Закріплений головним обприскувач 12 м на сівалці 3,6 м не ділився, і
+// головним мовчки ставав комбайн 9 м: колію різали під комбайн, а обприскувач
+// їхав по посіву. Знайдено незалежною перевіркою «колеса проти рядків».
+test('закріплена головна машина не підміняється тією, що поділилася', () => {
+  const r = computeTramlines({
+    ...grain,
+    machines: [
+      sprayer({ width: 12, base: true, axles: [{ trackWidth: 1.4, tyreWidth: 0.3 }] }),
+      { id: 'c', kind: 'combine', label: 'Комбайн', width: 9,
+        axles: [{ trackWidth: 2.9, tyreWidth: 0.8 }] },
+    ],
+  })
+  assert.equal(r.ok, true)
+  assert.equal(r.baseId, 's', `колію різали під «${r.baseLabel}»`)
+  assert.equal(r.machines.find((m) => m.id === 's').fits, true, 'обприскувач поза колією')
+  assert.ok(r.assumed, 'без припущення 12 м на 3,6 м не ділиться')
+  assert.match(r.warnings[0], /припущенням/)
+})
+
+// Поле рівно на один прохід сівалки (і вужче) діставало відмову «обсів
+// зʼїдає поле цілком», хоча обсіву не було: умова вимагала, щоб робоча
+// частина була ширшою за крок. Вузьку смугу сіють одним неповним проходом.
+test('поле на один прохід і вужче має план, а не відмову', () => {
+  const r = computeTramlines({ ...grain, machines: [sprayer({ base: true })] })
+  for (const width of [0.5, 2, 3.6, 5]) {
+    const p = fieldPlan(r, { fieldWidth: width, fieldLength: 100, rowSpacing: 0.15 })
+    assert.ok(p && !p.tooSmall, `поле ${width} м: плану немає`)
+    assert.equal(p.passes.length, Math.ceil(width / 3.6 - 1e-9), `поле ${width} м`)
+    const sown = p.passes.reduce((s, x) => s + x.sowing.length, 0)
+    assert.equal(sown, Math.round(width / 0.15), `поле ${width} м: засіяно ${sown} рядків`)
+  }
+  const eaten = fieldPlan(r, { fieldWidth: 40, fieldLength: 100, headland: 20, rowSpacing: 0.15 })
+  assert.equal(eaten.tooSmall, true, 'обсів на все поле — тоді відмова')
+})

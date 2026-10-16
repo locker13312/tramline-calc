@@ -954,12 +954,6 @@ export const computeExact = (input) => computeOnce(input)
 
 export function computeTramlines(input) {
   const direct = computeOnce(input)
-  // Припущення — тільки там, де колії немає зовсім. Якщо на заданих числах
-  // вона складається, міняти ці числа програма не має права: захвати ввела
-  // людина, і «я порахував з іншими» на це не відповідь. Коли при живій
-  // колії якась машина в неї не вклалася, про це сказано попередженням, а
-  // як її туди завести — видно в способах: там це вибір, а не підміна.
-  if (direct.ok || direct.fail !== 'ratio') return direct
 
   // Скільком машинам, яких хотіли в колії, її таки нарізано. Це і є міра
   // того, чи знайдене рішення: колія, по якій не їздить обприскувач, —
@@ -967,14 +961,34 @@ export function computeTramlines(input) {
   const served = (r) => (r.ok ? r.machines.filter((m) => m.active && m.fits).length : 0)
   const asked = (r) => (r.machines ?? []).filter((m) => m.active).length
 
+  // Закріплена людиною головна машина: колію ріжуть саме під неї.
+  const park = normaliseMachines(input).filter((m) => m.active)
+  const pinned = park.find((m) => m.base) ?? null
+  const pinnedOut = (r) => !!pinned && !r.machines?.some((m) => m.id === pinned.id && m.fits)
+
+  // Припущення — там, де колії немає зовсім, або де вона є, але не під ту
+  // машину, яку людина назвала головною. Штанга 12 м на сівалці 3,6 м не
+  // ділиться, і тоді головною мовчки ставав комбайн 9 м, а обприскувач, заради
+  // якого колію й ріжуть, їхав по посіву. Робоча ширина штанги — не заміна
+  // техніки, а спосіб нею працювати, тож програма бере її й каже про це
+  // першим рядком.
+  //
+  // Решту машин, що не вклалися при живій колії, сівалку заради них не
+  // звужують: про них сказано попередженням, а як їх завести — у способах.
+  if (direct.fail && direct.fail !== 'ratio') return direct
+  if (direct.ok && !pinnedOut(direct)) return direct
+
   // Машина, під яку різали колію: у відмові вона приходить окремим полем, у
   // робочій відповіді — прапорцем у звіті по машинах.
-  const lead = direct.base ?? direct.machines?.find((m) => m.base) ?? null
+  // Закріплена людиною головна машина важить більше за ту, яку розрахунок
+  // поставив замість неї, коли закріплена не поділилася.
+  const lead = pinned
+    ?? direct.base ?? direct.machines?.find((m) => m.base) ?? null
   const geo = drillGeometry(input)
   const options = lead
     ? workingSets({
       geo,
-      machines: normaliseMachines(input).filter((m) => m.active),
+      machines: park,
       limit: 8,
     })
     : []
@@ -1004,7 +1018,7 @@ export function computeTramlines(input) {
     // Порівнюємо по порядку важливості: скільком машинам нарізано колію;
     // чи не зменшено заданий нахльост (його ставлять не для краси, а тому
     // що без підрулювання в стик не влучити); і аж потім ціна.
-    const mark = [-served(next), o.off >= already ? 0 : 1, o.cost]
+    const mark = [pinnedOut(next) ? 1 : 0, -served(next), o.off >= already ? 0 : 1, o.cost]
     if (!best || mark.some((v, i) => v < best.mark[i]
       && mark.slice(0, i).every((x, j) => x === best.mark[j]))) {
       best = { assume, next, mark }
@@ -1014,6 +1028,9 @@ export function computeTramlines(input) {
     if (served(next) === asked(next) && o.off >= already && o.cost === 0) break
   }
   if (!best) return direct
+  // Жива колія на заданих числах поступається лише тоді, коли припущення
+  // справді заводить у неї головну машину — інакше це підміна без користі.
+  if (direct.ok && pinnedOut(best.next)) return direct
 
   const { assume, next } = best
   // Попередження беремо з самої відповіді, а не з прямого розрахунку: про
@@ -1124,6 +1141,8 @@ export function fieldPlan(
   // Крок сівалки — не те саме, що її захват: із нахльостом вона
   // переставляється на менше, і проходів на поле виходить більше.
   const D = result.step > 0 ? result.step : W
+  // Без кроку сівалки проходів не порахувати — плану немає, а не нескінченність.
+  if (!(D > 0) || !Array.isArray(offsets)) return null
   const over = result.overlapRows || 0
   const overWidth = result.overlapWidth || 0
 
@@ -1135,7 +1154,7 @@ export function fieldPlan(
   const x1 = fw - H
   const workWidth = x1 - x0
   const workLength = fl - 2 * H
-  if (!(workWidth > D) || !(workLength > 0)) {
+  if (!(workWidth > 0) || !(workLength > 0)) {
     return { tooSmall: true, fieldWidth: fw, fieldLength: fl, headland: H,
       areaHa: mm((fw * fl) / 10000) }
   }
