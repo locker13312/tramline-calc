@@ -197,40 +197,10 @@ test('обсів ширший за поле — плану немає, а не �
   assert.equal(p.tooSmall, true)
 })
 
-// ── Підбір колії ──────────────────────────────────────────────────────────
+import { rhythmOf } from '../src/lib/tramline.js'
 
-import { suggestTracks, rhythmOf } from '../src/lib/tramline.js'
 
-test('на 70 см підказує колію, кратну парному числу міжрядь', () => {
-  const s = suggestTracks({
-    rows: 12, rowSpacing: 0.7, sprayerWidth: 25.2,
-    tyreWidth: 0.32, margin: 0.1, trackWidth: 2.1,
-  })
-  assert.equal(s.possible, true)
-  assert.equal(s.current, null, '2,1 м не проходить — саме тому й підбираємо')
-  const tracks = s.options.map(o => o.track)
-  assert.ok(tracks.includes(2.8), `серед варіантів має бути 2,8: ${tracks}`)
-  assert.ok(s.options.every(o => o.clearance > 0))
-})
 
-test('добру колію програма визнає доброю, а не пропонує міняти', () => {
-  const s = suggestTracks({
-    rows: 12, rowSpacing: 0.7, sprayerWidth: 25.2,
-    tyreWidth: 0.32, margin: 0.1, trackWidth: 2.8,
-  })
-  assert.ok(s.current, 'поточна колія має знайтись серед робочих')
-  assert.ok(s.current.clearance > 0.1)
-})
-
-test('на вузькому міжрядді чесно каже, що підбирати нічого', () => {
-  const s = suggestTracks({
-    rows: 24, rowSpacing: 0.15, sprayerWidth: 18,
-    tyreWidth: 0.35, margin: 0.05, trackWidth: 1.8,
-  })
-  assert.equal(s.possible, false)
-  assert.ok(s.need > 0.15, 'видно, скільки міжряддя для цього треба')
-  assert.deepEqual(s.options, [])
-})
 
 // ── Друга машина ──────────────────────────────────────────────────────────
 //

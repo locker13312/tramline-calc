@@ -9,7 +9,7 @@
 
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { computeTramlines, fieldPlan, suggestTracks } from '../src/lib/tramline.js'
+import { computeTramlines, fieldPlan } from '../src/lib/tramline.js'
 import { economics } from '../src/lib/economics.js'
 
 // Простий детермінований генератор: та сама послідовність на кожному запуску,
@@ -264,25 +264,3 @@ test('гроші або рахуються, або чесно відсутні �
   }
 })
 
-test('підбір колісної бази не пропонує значень, що чіпають сошники', () => {
-  for (let seed = 1; seed <= N; seed++) {
-    const input = sample(seed)
-    const a = suggestTracks(input)
-    if (!a?.machines?.length) continue
-    for (const m of a.machines) {
-      if (!m.possible) {
-        assert.deepEqual(m.options, [], `набір ${seed}: неможливе, але з варіантами`)
-        continue
-      }
-      for (const o of m.options ?? []) {
-        assert.ok(Number.isFinite(o.track) && o.track > 0, `набір ${seed}: база ${o.track}`)
-        assert.ok(o.clearance > 0, `набір ${seed}: просвіт ${o.clearance}`)
-      }
-      // Спільні значення мусять бути добрими для кожної машини.
-      for (const t of a.common) {
-        assert.ok(m.all.some((o) => Math.abs(o.track - t) < 1e-9),
-          `набір ${seed}: ${t} м у спільних, але не годиться для «${m.label}»`)
-      }
-    }
-  }
-})

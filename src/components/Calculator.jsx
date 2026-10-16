@@ -1,5 +1,5 @@
 import { useDeferredValue, useEffect, useMemo, useRef, useState } from 'react'
-import { computeTramlines, fieldPlan, suggestTracks, coulterOffsets, AUTO_MARGIN } from '../lib/tramline'
+import { computeTramlines, fieldPlan, coulterOffsets, AUTO_MARGIN } from '../lib/tramline'
 import { solutions } from '../lib/solutions'
 import { economics } from '../lib/economics'
 import { CROPS, CHASSIS_PRESETS } from '../lib/presets'
@@ -8,7 +8,6 @@ import { DRIVE_MODES, driveMode, headlandFor } from '../lib/driving'
 import { num, plural, rangeText } from '../lib/format'
 import NumField from './NumField'
 import Verdict from './Verdict'
-import { TrackAdvice } from './Advice'
 import MachineList from './MachineList'
 import MachinePlan from './MachinePlan'
 import FieldPlan from './FieldPlan'
@@ -74,8 +73,6 @@ export default function Calculator({
   const turnHints = result.ok && result.step > 0
     ? ['loop', 'free'].map((turn) => headlandFor({ step: result.step, turn })).filter(Boolean)
     : []
-
-  const advice = useMemo(() => suggestTracks({ ...input, machines }), [input, machines])
 
   // Способи засіяти це поле наявною технікою. Перебір повний: кілька
   // десятків повних розрахунків, і на великому парку це вже десятки
@@ -307,7 +304,6 @@ export default function Calculator({
           )}
 
           <MachinePlan result={result} onPick={pickForMachine} />
-          <TrackAdvice advice={advice} />
 
           {result.ok && (
             <>

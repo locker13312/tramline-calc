@@ -7,7 +7,7 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import {
-  computeTramlines, suggestTracks, trackOptionsFor,
+  computeTramlines,
   drillGeometry, coulterOffsets, resolveMargin, AUTO_MARGIN, LIMITS,
 } from '../src/lib/tramline.js'
 import { normaliseMachines, defaultMachines, newMachine } from '../src/lib/machines.js'
@@ -303,57 +303,8 @@ test('старий збережений трактор сівалки прост
 
 // ── Підбір колісної бази під кілька машин ─────────────────────────────────
 
-test('підбір бази розрізняє машини й знаходить спільні значення', () => {
-  const row = {
-    rows: 12, rowSpacing: 0.7, margin: 0.02,
-    machines: [
-      mach('s', 'Обприскувач', 25.2, [{ trackWidth: 2.1, tyreWidth: 0.3 }]),
-      mach('t', 'Трактор', 8.4, [{ trackWidth: 2.1, tyreWidth: 0.3 }]),
-    ],
-  }
-  const a = suggestTracks(row)
-  assert.equal(a.machines.length, 2)
-  assert.ok(a.common.length > 0, 'має бути база, добра для обох')
-  for (const t of a.common) {
-    for (const m of a.machines) {
-      assert.ok(m.all.some((o) => Math.abs(o.track - t) < 1e-9), `${t} м не годиться для ${m.label}`)
-    }
-  }
-  // 2,8 м — чотири міжрядді по 70 см, колесо точно в міжряддя.
-  assert.ok(a.common.some((t) => Math.abs(t - 2.8) < 1e-9))
-})
 
-test('підбір бази перевіряє всі проходи машини, не лише перший', () => {
-  // Захват 4,2 м на сівалці 8,4 м — два проходи машини на один прохід
-  // сівалки, і база має минати сошники в обох.
-  const offsets = coulterOffsets({ rows: 12, rowSpacing: 0.7 })
-  const o = trackOptionsFor({
-    machine: { id: 'c', label: 'К', width: 4.2, margin: 0.02, axles: [{ trackWidth: 2.8, tyreWidth: 0.3 }] },
-    offsets, W: 8.4, k: 1,
-  })
-  assert.ok(o.all.length > 0, 'на 70 см міжрядді варіанти мусять бути')
-  for (const opt of o.all) {
-    for (let j = 0; j < 2; j++) {
-      for (const wheel of [(j + 0.5) * 4.2 - opt.track / 2, (j + 0.5) * 4.2 + opt.track / 2]) {
-        const u = ((wheel % 8.4) + 8.4) % 8.4
-        const d = Math.min(...offsets.map((x) =>
-          Math.min(Math.abs(u - x), Math.abs(u - x + 8.4), Math.abs(u - x - 8.4))))
-        assert.ok(d > 0.3 / 2 + 0.02 - 1e-9, `база ${opt.track}: колесо на ${wheel} м чіпає сошник (просвіт ${d})`)
-      }
-    }
-  }
-})
 
-test('на зерновому міжрядді підбирати базу нічого — і це сказано прямо', () => {
-  const o = trackOptionsFor({
-    machine: { id: 'c', label: 'Комбайн', width: 9, margin: 0.02, axles: [{ trackWidth: 3, tyreWidth: 0.8 }] },
-    offsets: coulterOffsets({ rows: 24, rowSpacing: 0.15 }),
-    W: 3.6, k: 5,
-  })
-  assert.equal(o.possible, false)
-  assert.ok(o.need > 0.15, 'колесо із запасом ширше за міжряддя')
-  assert.deepEqual(o.options, [])
-})
 
 // ── Список машин ──────────────────────────────────────────────────────────
 
@@ -548,26 +499,3 @@ test('підручниковий агрегат: ті самі 6, 7, 18 і 19 а
   assert.equal(Math.round(3 * 0.15 * 1000), 450)
 })
 
-// Підбір бази мовчки зникав, щойно вмикали нахльост: відношення захватів
-// рахувалося від рами сівалки, а не від її кроку, і до дробу не зводилося.
-test('порада про колісну базу не зникає й не бреше з нахльостом', () => {
-  const row = (overlapRows, width, track) => ({
-    rows: 12, rowSpacing: 0.7, margin: 0.1, overlapRows,
-    machines: [{
-      id: 's', label: 'Обприскувач', width, base: true, active: true,
-      axles: [{ trackWidth: track, tyreWidth: 0.3 }],
-    }],
-  })
-  for (const [overlapRows, width] of [[0, 16.8], [1, 15.4], [2, 14]]) {
-    const advice = suggestTracks(row(overlapRows, width, 2.1))
-    const options = advice?.machines?.[0]?.options ?? []
-    assert.ok(options.length > 0, `нахльост ${overlapRows}: поради немає зовсім`)
-    for (const o of options) {
-      const r = computeTramlines(row(overlapRows, width, o.track))
-      assert.equal(r.ok, true, `нахльост ${overlapRows}, база ${o.track}: нема відповіді`)
-      assert.equal(r.disabledPerCycle, 0,
-        `нахльост ${overlapRows}: обіцяли, що база ${o.track} м нічого не глушить, `
-        + `а глушиться ${r.disabledPerCycle}`)
-    }
-  }
-})

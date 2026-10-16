@@ -10,7 +10,7 @@
 
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { computeTramlines, fieldPlan, suggestTracks, workingSets, rhythmOf, drillGeometry } from '../src/lib/tramline.js'
+import { computeTramlines, fieldPlan, workingSets, rhythmOf, drillGeometry } from '../src/lib/tramline.js'
 import { solutions } from '../src/lib/solutions.js'
 import { economics } from '../src/lib/economics.js'
 import { normaliseMachines } from '../src/lib/machines.js'
@@ -264,24 +264,6 @@ test('частка втрат поза межами 0–100 не виносит�
 
 // ── Підбір колісної бази ──────────────────────────────────────────────────
 
-test('підбір бази витримує сміття', () => {
-  for (const input of [
-    {}, { rows: 0, rowSpacing: 0 }, { ...ok, machines: [] },
-    { ...ok, machines: 'abc' }, { ...ok, machines: [null] },
-    { ...ok, machines: [{ id: 'a', width: 18, axles: [] }] },
-    { ...ok, rowSpacing: NaN, machines: [spr] },
-    { ...ok, coulters: [], machines: [spr] },
-    { ...ok, machines: [{ ...spr, width: 0 }] },
-  ]) {
-    let a
-    assert.doesNotThrow(() => { a = suggestTracks(input) }, `підбір впав на ${JSON.stringify(input)}`)
-    if (!a) continue
-    finite(a, `підбір ${JSON.stringify(input)}`)
-    for (const m of a.machines ?? []) {
-      for (const o of m.options ?? []) assert.ok(o.track > 0 && o.clearance > 0)
-    }
-  }
-})
 
 // ── Способи й робочі ширини ───────────────────────────────────────────────
 
@@ -352,16 +334,14 @@ test('повний прогін на зіпсованих даних не пад
     { rows: 24, rowSpacing: 0.15, machines: [{ id: 'a' }] },
   ]
   for (const input of junk) {
-    let r, p, e, a
+    let r, p, e
     assert.doesNotThrow(() => {
       r = computeTramlines(input)
       p = fieldPlan(r, input)
-      a = suggestTracks(input)
       e = economics(p, r, input)
     }, `повний прогін впав на ${JSON.stringify(input)}`)
     sane(r, `прогін ${JSON.stringify(input)}`)
     if (p && !p.tooSmall) finite({ ...p, passes: undefined, strips: undefined }, 'план')
     if (e) finite(e, 'гроші')
-    if (a) finite(a, 'підбір')
   }
 })

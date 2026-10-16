@@ -5,7 +5,7 @@
 // The way search is timed apart on purpose: it is dozens of full
 // calculations and the UI runs it on a deferred value, so it is allowed to
 // take a few frames while the answer itself stays instant.
-import { computeTramlines, fieldPlan, suggestTracks } from '../src/lib/tramline.js'
+import { computeTramlines, fieldPlan } from '../src/lib/tramline.js'
 import { solutions } from '../src/lib/solutions.js'
 import { economics } from '../src/lib/economics.js'
 import { newMachine } from '../src/lib/machines.js'
@@ -53,7 +53,6 @@ for (const [name, input] of Object.entries(cases)) {
   const answer = time(() => {
     const r = computeTramlines(input)
     const p = fieldPlan(r, input)
-    suggestTracks(input)
     economics(p, r, input)
   })
   const ways = time(() => solutions(input, input))
