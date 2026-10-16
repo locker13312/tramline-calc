@@ -130,7 +130,9 @@ export default function Sidebar({
             <div className="side-h">зараз у розрахунку</div>
             {now.map((row) => (
               <button
-                key={row.key} type="button" className="side-row"
+                // Ключ — підпис, а не розділ: «сівалка» й «запас» ведуть в
+                // один розділ, і однаковий ключ React плутав би рядки.
+                key={row.label} type="button" className="side-row"
                 onClick={() => { setTab('calc'); setSection(row.key); setMenu(false) }}
                 title={`Змінити: ${row.label}`}
               >

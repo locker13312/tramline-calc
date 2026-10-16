@@ -136,3 +136,41 @@ test('без кроку сівалки обсіву не порахувати �
     assert.equal(headlandFor({ step: bad }), null)
   }
 })
+
+// ── Маршрути на карті ─────────────────────────────────────────────────────
+
+import { machineRoutes } from '../src/lib/driving.js'
+
+test('сівалка на карті проїжджає кожну смугу раз і в порядку заїздів', () => {
+  const r = computeTramlines(grain)
+  for (const drive of ['row', 'skip', 'lands']) {
+    const p = fieldPlan(r, { ...field, drive, land: 4 })
+    const routes = machineRoutes(p, r)
+    assert.equal(routes.drill.passes.length, p.passes.length)
+    assert.deepEqual(routes.drill.passes.map((x) => x.pass.entry), p.passes.map((_, i) => i + 1))
+    // Напрям чергується: кожен наступний заїзд — після розвороту.
+    routes.drill.passes.forEach((x, i) => assert.equal(x.up, i % 2 === 0))
+  }
+})
+
+test('машина на карті їде точно посередині своїх колій', () => {
+  const r = computeTramlines(grain)
+  const p = fieldPlan(r, field)
+  const routes = machineRoutes(p, r)
+  const s = routes.machines.find((m) => m.id === 's')
+  assert.ok(s.passes.length > 0)
+  // Кожне колесо обприскувача мусить стояти в нарізаній смузі поля.
+  const strips = p.strips.filter((x) => x.machine === 's')
+  for (const pass of s.passes) {
+    for (const wheel of [pass.x - 0.9, pass.x + 0.9]) {
+      if (wheel < 0.2 || wheel > field.fieldWidth - 0.2) continue
+      assert.ok(strips.some((x) => wheel >= x.from - 1e-6 && wheel <= x.to + 1e-6),
+        `колесо на ${wheel} м не в смузі`)
+    }
+  }
+})
+
+test('без плану маршрутів немає — і без падіння', () => {
+  assert.equal(machineRoutes(null, null), null)
+  assert.equal(machineRoutes({ passes: [] }, { ok: true }), null)
+})

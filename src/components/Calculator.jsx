@@ -12,6 +12,7 @@ import MachineList from './MachineList'
 import MachinePlan from './MachinePlan'
 import FieldPlan from './FieldPlan'
 import FieldDiagram from './FieldDiagram'
+import FieldRoutes from './FieldRoutes'
 import PassPlan from './PassPlan'
 import PassList from './PassList'
 import Ways from './Ways'
@@ -325,6 +326,13 @@ export default function Calculator({
                       Саме на цьому краю колія ляже не там, де її чекають.
                     </p>
                   )}
+                </div>
+              )}
+
+              {plan && !plan.tooSmall && !plan.tooBig && (
+                <div className="panel">
+                  <h2>рухи машин</h2>
+                  <FieldRoutes plan={plan} result={result} />
                 </div>
               )}
 

@@ -474,6 +474,17 @@ body {
 .f-spray { stroke: var(--ink-3); stroke-width: 0.75; stroke-dasharray: 5 6; }
 .f-tram { stroke: var(--track); stroke-width: 2; }
 
+/* Рухи машин: пройдене суцільним, попереду блідим пунктиром, поточне — товсто. */
+.routes .rt-who { flex-wrap: wrap; margin-bottom: 12px; }
+.routes .rt-who button { flex: 1 1 auto; min-height: 36px; padding: 7px 10px; }
+.rt-todo { fill: none; stroke-width: 1; opacity: 0.35; stroke-dasharray: 3 4; }
+.rt-done { fill: none; stroke-width: 1.6; opacity: 0.9; }
+.rt-now { fill: none; stroke-width: 4; }
+.rt-arrow { stroke: none; }
+.rt-ctrl { display: flex; align-items: center; gap: 12px; margin-top: 12px; }
+.rt-ctrl input[type="range"] { flex: 1; min-width: 0; accent-color: var(--crop); }
+.rt-info { margin: 10px 0 0; min-height: 2.6em; }
+
 .legend { display: flex; gap: 16px; flex-wrap: wrap; font-size: 12.5px; color: var(--ink-2); margin-top: 11px; }
 .legend .sw { display: inline-block; width: 14px; height: 3px; border-radius: 2px; margin-right: 6px; vertical-align: middle; }
 .sw-row { background: var(--crop); }
